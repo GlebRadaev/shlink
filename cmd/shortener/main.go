@@ -24,7 +24,7 @@ const (
     invalidIDLengthMsg     = "Invalid ID length"
 )
 
-func generateId() string {
+func generateID() string {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     id := make([]byte, 8)
     charLen := len(characters)
@@ -88,7 +88,7 @@ func shortenURL(w http.ResponseWriter, r *http.Request) {
         respondWithError(w, invalidURLFormatMsg)
         return
     }
-    id := generateId()
+    id := generateID()
     shortUrls[id] = url
     shortenedURL := fmt.Sprintf("%s:%s/%s", baseURL, port, id)
     w.WriteHeader(http.StatusCreated)
