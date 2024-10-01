@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -20,11 +21,10 @@ type URLShortener struct {
 
 var (
 	urlShortener = &URLShortener{shortUrls: make(map[string]string)}
+	cfg          *config.Config
 )
 
 const (
-	baseURL      = "http://localhost"
-	port         = "8080"
 	maxURLLength = 2048
 	idLength     = 8
 )
@@ -90,7 +90,7 @@ func isValidID(id string) error {
 func (us *URLShortener) ShortenURL(url string) (string, error) {
 	id := generateID()
 	us.shortUrls[id] = url
-	return fmt.Sprintf("%s:%s/%s", baseURL, port, id), nil
+	return fmt.Sprintf("%s/%s", cfg.BaseURL, id), nil
 }
 
 func (us *URLShortener) GetURL(id string) (string, bool) {
@@ -158,8 +158,9 @@ func RequestMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	r := chi.NewRouter()
+	cfg := config.ParseFlags()
 
+	r := chi.NewRouter()
 	r.Use(RequestMiddleware)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
@@ -168,10 +169,10 @@ func main() {
 	r.Post(`/`, shortenURL)
 	r.Get(`/{id}`, redirectURL)
 
-	log.Printf("Server is running on %s:%s", baseURL, port)
-	err := http.ListenAndServe(":"+port, r)
+	log.Printf("Server is running on %s", cfg.ServerAddress)
+	err := http.ListenAndServe(cfg.ServerAddress, r)
 	if err != nil {
-		log.Println("Failed to start server on port", port)
+		log.Println("Failed to start server on", cfg.ServerAddress)
 		log.Fatal(err)
 	}
 }

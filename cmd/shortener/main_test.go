@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,6 +17,21 @@ func assertResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedCode in
 	if expectedError != "" {
 		assert.Equal(t, expectedError, strings.TrimSpace(rr.Body.String()))
 	}
+}
+
+func setupRouter() *chi.Mux {
+	cfg = &config.Config{
+		ServerAddress: "localhost:8080",
+		BaseURL:       "http://localhost:8080",
+	}
+
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Post(`/`, shortenURL)
+		r.Get(`/{id}`, redirectURL)
+	})
+
+	return r
 }
 
 func TestIsValidURL(t *testing.T) {
@@ -81,13 +97,13 @@ func TestShortenURL(t *testing.T) {
 			expectedCode: http.StatusCreated,
 		},
 	}
+	r := setupRouter()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", tt.contentType)
 			rr := httptest.NewRecorder()
 
-			r := chi.NewRouter()
 			r.Post("/", shortenURL)
 
 			r.ServeHTTP(rr, req)
@@ -95,7 +111,7 @@ func TestShortenURL(t *testing.T) {
 			assertResponse(t, rr, tt.expectedCode, tt.expectedError)
 			if tt.expectedError == "" {
 				body := rr.Body.String()
-				expectedPrefix := fmt.Sprintf("%s:%s/", baseURL, port)
+				expectedPrefix := fmt.Sprintf("%s/", cfg.BaseURL)
 				assert.Contains(t, body, expectedPrefix)
 
 				parts := strings.Split(strings.TrimSpace(body), "/")
@@ -132,18 +148,19 @@ func TestRedirectURL(t *testing.T) {
 			expectedError: errorInvalidIDLength,
 		},
 	}
+	r := setupRouter()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.name == "Valid ID" {
 				shortenReq := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("http://example.com"))
 				shortenReq.Header.Set("Content-Type", "text/plain")
 				shortenResp := httptest.NewRecorder()
-				r := chi.NewRouter()
 				r.Post("/", shortenURL)
 				r.ServeHTTP(shortenResp, shortenReq)
 				assert.Equal(t, http.StatusCreated, shortenResp.Code)
 				shortenedURL := shortenResp.Body.String()
-				tt.id = strings.TrimPrefix(shortenedURL, fmt.Sprintf("%s:%s/", baseURL, port))
+				tt.id = strings.TrimPrefix(shortenedURL, fmt.Sprintf("%s/", cfg.BaseURL))
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.id, nil)
