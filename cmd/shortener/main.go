@@ -158,7 +158,7 @@ func RequestMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	cfg := config.ParseFlags()
+	cfg = config.ParseFlags()
 
 	r := chi.NewRouter()
 	r.Use(RequestMiddleware)
