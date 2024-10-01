@@ -1,133 +1,177 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
+type URLShortener struct {
+	shortUrls map[string]string
+}
+
 var (
-    baseURL = "http://localhost"
-    port    = "8080"
-    shortUrls = make(map[string]string)
+	urlShortener = &URLShortener{shortUrls: make(map[string]string)}
 )
 
 const (
-    urlTooLongMessage     = "URL is too long"
-    invalidContentTypeMsg  = "Invalid content type. Only text/plain is allowed"
-    invalidRequestBodyMsg  = "Invalid request body"
-    invalidURLFormatMsg    = "Invalid URL format"
-    invalidIDMsg           = "Invalid ID"
-    invalidIDLengthMsg     = "Invalid ID length"
+	baseURL      = "http://localhost"
+	port         = "8080"
+	maxURLLength = 2048
+	idLength     = 8
+)
+const (
+	errorURLTooLong         = "url is too long"
+	errorInvalidContentType = "invalid content type. Only text/plain is allowed"
+	errorInvalidRequestBody = "invalid request body"
+	errorInvalidURLFormat   = "invalid URL format"
+	errorInvalidID          = "invalid ID"
+	errorInvalidIDFormat    = "invalid ID format"
+	errorInvalidIDLength    = "invalid ID length"
 )
 
 func generateID() string {
-    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    id := make([]byte, 8)
-    charLen := len(characters)
-    for i := range id {
-        id[i] = characters[rand.Intn(charLen)]
-    }
-    return string(id)
+	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	id := make([]byte, idLength)
+	charLen := len(characters)
+	for i := range id {
+		id[i] = characters[rand.Intn(charLen)]
+	}
+	return string(id)
 }
 
-func isValidURL(url string) bool {
-    validPrefixes := []string{"http://", "https://"}
-    isValidPrefix := false
-    for _, prefix := range validPrefixes {
-        if strings.HasPrefix(url, prefix) {
-            isValidPrefix = true
-            break
-        }
-    }
-    if !isValidPrefix {
-        return false
-    }
-    if strings.Contains(url, " ") || strings.Contains(url, "#") || strings.Contains(url, "%") {
-        return false
-    }
-    urlWithoutPrefix := strings.TrimPrefix(url, "http://")
-    urlWithoutPrefix = strings.TrimPrefix(urlWithoutPrefix, "https://")
-    if len(urlWithoutPrefix) == 0 || !strings.Contains(urlWithoutPrefix, ".") {
-        return false
-    }
-    return true
+func isValidURL(url string) error {
+	validPrefixes := []string{"http://", "https://"}
+	isValidPrefix := false
+	for _, prefix := range validPrefixes {
+		if strings.HasPrefix(url, prefix) {
+			isValidPrefix = true
+			break
+		}
+	}
+	if len(url) > maxURLLength {
+		return errors.New(errorURLTooLong)
+	}
+	if !isValidPrefix {
+		return errors.New(errorInvalidURLFormat)
+	}
+	if strings.Contains(url, " ") || strings.Contains(url, "#") || strings.Contains(url, "%") {
+		return errors.New(errorInvalidURLFormat)
+	}
+	urlWithoutPrefix := strings.TrimPrefix(url, "http://")
+	urlWithoutPrefix = strings.TrimPrefix(urlWithoutPrefix, "https://")
+	if len(urlWithoutPrefix) == 0 || !strings.Contains(urlWithoutPrefix, ".") {
+		return errors.New(errorInvalidURLFormat)
+	}
+	return nil
+}
+
+func isValidID(id string) error {
+	if len(id) != idLength {
+		return errors.New(errorInvalidIDLength)
+	}
+	validCharacters := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	for _, char := range id {
+		if !strings.ContainsRune(validCharacters, char) {
+			return errors.New(errorInvalidIDFormat)
+		}
+	}
+	return nil
+}
+
+func (us *URLShortener) ShortenURL(url string) (string, error) {
+	id := generateID()
+	us.shortUrls[id] = url
+	return fmt.Sprintf("%s:%s/%s", baseURL, port, id), nil
+}
+
+func (us *URLShortener) GetURL(id string) (string, bool) {
+	url, ok := us.shortUrls[id]
+	return url, ok
 }
 
 func respondWithError(w http.ResponseWriter, message string) {
-    http.Error(w, message, http.StatusBadRequest)
+	http.Error(w, message, http.StatusBadRequest)
 }
 
 func shortenURL(w http.ResponseWriter, r *http.Request) {
-    contentType := r.Header.Get("Content-Type")
-    parts := strings.Split(contentType, ";")
-    if parts[0] != "text/plain" {
-        respondWithError(w, invalidContentTypeMsg)
-        return
-    }
-    body, err := io.ReadAll(r.Body)
-    defer r.Body.Close()
-    if err != nil {
-        respondWithError(w, invalidRequestBodyMsg)
-        return
-    }
-    url := string(body)
+	contentType := r.Header.Get("Content-Type")
+	parts := strings.Split(contentType, ";")
+	if parts[0] != "text/plain" {
+		respondWithError(w, errorInvalidContentType)
+		return
+	}
 
-    if !isValidURL(url) {
-        respondWithError(w, invalidURLFormatMsg)
-        return
-    }
-    if len(url) > 2048 {
-        respondWithError(w, urlTooLongMessage)
-        return
-    }
-    if !isValidURL(url) {
-        respondWithError(w, invalidURLFormatMsg)
-        return
-    }
-    id := generateID()
-    shortUrls[id] = url
-    shortenedURL := fmt.Sprintf("%s:%s/%s", baseURL, port, id)
-    w.WriteHeader(http.StatusCreated)
-    w.Write([]byte(shortenedURL))
+	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		respondWithError(w, errorInvalidRequestBody)
+		return
+	}
+	url := string(body)
+
+	if err := isValidURL(url); err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+	shortenedURL, err := urlShortener.ShortenURL(url)
+	if err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(shortenedURL))
 }
 
 func redirectURL(w http.ResponseWriter, r *http.Request) {
-    id := strings.TrimPrefix(r.URL.Path, "/")
-    if len(id) != 8 {
-        respondWithError(w, invalidIDLengthMsg)
-        return
-    }
-    url, ok := shortUrls[id]
-    if !ok {
-        respondWithError(w, invalidIDMsg)
-        return
-    }
-    w.Header().Set("Location", url)
-    w.WriteHeader(http.StatusTemporaryRedirect)
+	id := chi.URLParam(r, "id")
+	if err := isValidID(id); err != nil {
+		respondWithError(w, err.Error())
+		return
+	}
+	url, ok := urlShortener.GetURL(id)
+	if !ok {
+		respondWithError(w, errorInvalidID)
+		return
+	}
+	w.Header().Set("Location", url)
+	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request) {
-    switch r.Method {
-    case http.MethodPost:
-        shortenURL(w, r)
-    case http.MethodGet:
-        redirectURL(w, r)
-    default:
-        respondWithError(w, "Method not allowed")
-    }
+func RequestMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(start)
+		if duration > 60*time.Second {
+			log.Printf("Request is too slow: %s %s is completed in %v", r.Method, r.URL.Path, duration)
+		}
+	})
 }
 
 func main() {
-    mux := http.NewServeMux()
-    mux.HandleFunc(`/`, handleRequest)
+	r := chi.NewRouter()
 
-    log.Printf("Server is running on %s:%s", baseURL, port)
-    err := http.ListenAndServe(":"+port, mux)
-    if err != nil {
-        log.Fatal(err)
-    }
+	r.Use(RequestMiddleware)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	r.Post(`/`, shortenURL)
+	r.Get(`/{id}`, redirectURL)
+
+	log.Printf("Server is running on %s:%s", baseURL, port)
+	err := http.ListenAndServe(":"+port, r)
+	if err != nil {
+		log.Println("Failed to start server on port", port)
+		log.Fatal(err)
+	}
 }
