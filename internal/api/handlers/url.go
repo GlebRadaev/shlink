@@ -29,7 +29,8 @@ func NewURLHandlers(urlService *service.URLService, config *config.Config) *URLH
 // Shorten handles the request to shorten a URL
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	if !isValidContentType(contentType) {
+	parts := strings.Split(contentType, ";")
+	if parts[0] != "text/plain" {
 		http.Error(w, "Invalid content type", http.StatusBadRequest)
 		return
 	}
@@ -55,11 +56,6 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 // Redirect handles the request to redirect to the original URL
 func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	contentType := r.Header.Get("Content-Type")
-	if !isValidContentType(contentType) {
-		http.Error(w, "Invalid content type", http.StatusBadRequest)
-		return
-	}
 
 	originalURL, err := h.urlService.GetOriginal(id)
 	if err != nil {
@@ -68,10 +64,4 @@ func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", originalURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
-}
-
-// Helper function to validate content type.
-func isValidContentType(contentType string) bool {
-	parts := strings.Split(contentType, ";")
-	return parts[0] == "text/plain"
 }
