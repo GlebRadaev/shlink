@@ -1,30 +1,30 @@
 package config
 
 import (
-	"net"
-	"os"
+	"flag"
+	"log"
 
-	"github.com/spf13/pflag"
+	"github.com/caarlos0/env/v6"
 )
 
 type Config struct {
-	ServerAddress string
-	BaseURL       string
+	ServerAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
+	BaseURL       string `env:"BASE_URL" envDefault:"http://localhost:8080"`
 }
 
-func ParseFlags() *Config {
+// ParseAndLoadConfig parses the configuration from environment variables and command-line flags
+func ParseAndLoadConfig() *Config {
 	cfg := &Config{}
 
-	pflag.StringVarP(&cfg.ServerAddress, "address", "a", "localhost:8080", "HTTP server address")
-	pflag.StringVarP(&cfg.BaseURL, "base-url", "b", "http://localhost:8080", "Base address for shortened URL")
-
-	pflag.Parse()
-
-	// Проверяем, что адрес имеет правильный формат
-	if _, err := net.ResolveTCPAddr("tcp", cfg.ServerAddress); err != nil {
-		pflag.Usage()
-		os.Exit(1)
+	// Parsing environment variables
+	if err := env.Parse(cfg); err != nil {
+		log.Fatalf("Failed to parse config from env: %v", err)
 	}
+
+	// Defining command-line flags
+	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "HTTP server address")
+	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base address for shortened URL")
+	flag.Parse()
 
 	return cfg
 }
