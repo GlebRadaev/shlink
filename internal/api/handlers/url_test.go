@@ -112,6 +112,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 
 			res := w.Result()
 			body, _ := io.ReadAll(res.Body)
+			defer res.Body.Close()
 
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 
@@ -209,6 +210,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 			r.ServeHTTP(w, req)
 
 			res := w.Result()
+			defer res.Body.Close()
 
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 
