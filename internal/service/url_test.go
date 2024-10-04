@@ -51,7 +51,7 @@ func TestURLService_Shorten(t *testing.T) {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, MaxIdLength, len(got), "Expected ID length to be %d, but got %d", MaxIdLength, len(got))
+				assert.Equal(t, MaxIDLength, len(got), "Expected ID length to be %d, but got %d", MaxIDLength, len(got))
 				storedURL, found := storage.Find(got)
 				assert.True(t, found, "Expected the ID to be stored, but it was not found")
 				assert.Equal(t, tt.args.url, storedURL, "Stored URL mismatch: got %v, want %v", storedURL, tt.args.url)

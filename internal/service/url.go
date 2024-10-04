@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MaxIdLength  = 8
+	MaxIDLength  = 8
 	MaxURLLength = 2048
 )
 
@@ -36,7 +36,7 @@ func (s *URLService) Shorten(url string) (string, error) {
 	if strings.Contains(url, " ") || strings.Contains(url, "#") || strings.Contains(url, "%") || len(urlWithoutPrefix) == 0 || !strings.Contains(urlWithoutPrefix, ".") {
 		return "", errors.New("invalid URL format")
 	}
-	id := utils.Generate(MaxIdLength)
+	id := utils.Generate(MaxIDLength)
 	err := s.storage.Save(id, url)
 	if err != nil {
 		return "", err
@@ -46,7 +46,7 @@ func (s *URLService) Shorten(url string) (string, error) {
 
 // GetOriginal retrieves the original URL by the short ID
 func (s *URLService) GetOriginal(id string) (string, error) {
-	if len(id) != MaxIdLength {
+	if len(id) != MaxIDLength {
 		return "", errors.New("invalid ID length")
 	}
 	validCharacters := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

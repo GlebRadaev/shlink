@@ -47,10 +47,10 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	shortId := fmt.Sprintf("%s/%s", h.config.BaseURL, shortURL)
+	shortID := fmt.Sprintf("%s/%s", h.config.BaseURL, shortURL)
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortId))
+	w.Write([]byte(shortID))
 }
 
 // Redirect handles the request to redirect to the original URL
