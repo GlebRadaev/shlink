@@ -102,7 +102,7 @@ func main() {
 			// Если нажата Enter, используем уже сгенерированный короткий URL
 			parts := strings.Split(shortURLStr, "/")
 			id = parts[len(parts)-1]
-			fmt.Println("✔️ Вы используете короткий URL:", shortURLStr)
+			fmt.Println("✔️ Вы используете короткий URL:", id)
 		} else {
 			// Если введен пользовательский URL, берем его идентификатор
 			parts := strings.Split(userInput, "/")

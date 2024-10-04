@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 
+	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/go-chi/chi/v5"
 )
@@ -13,11 +15,15 @@ import (
 // URLHandlers defines the handlers for URL shortening
 type URLHandlers struct {
 	urlService *service.URLService
+	config     *config.Config
 }
 
 // NewURLHandlers creates a new instance of URLHandlers
-func NewURLHandlers(urlService *service.URLService) *URLHandlers {
-	return &URLHandlers{urlService: urlService}
+func NewURLHandlers(urlService *service.URLService, config *config.Config) *URLHandlers {
+	return &URLHandlers{
+		urlService: urlService,
+		config:     config,
+	}
 }
 
 // Shorten handles the request to shorten a URL
@@ -40,9 +46,10 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+	shortId := fmt.Sprintf("%s/%s", h.config.BaseURL, shortURL)
+	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortURL))
+	w.Write([]byte(shortId))
 }
 
 // Redirect handles the request to redirect to the original URL

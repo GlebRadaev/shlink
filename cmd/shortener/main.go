@@ -30,7 +30,7 @@ func main() {
 	cfg := config.ParseAndLoadConfig()
 	memoryStorage := repository.NewMemoryStorage()
 	urlService := service.NewURLService(memoryStorage)
-	urlHandlers := handlers.NewURLHandlers(urlService)
+	urlHandlers := handlers.NewURLHandlers(urlService, cfg)
 
 	r := chi.NewRouter()
 	r.Use(RequestMiddleware)
