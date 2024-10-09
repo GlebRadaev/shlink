@@ -50,7 +50,11 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	shortID := fmt.Sprintf("%s/%s", h.config.BaseURL, shortURL)
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(shortID))
+	_, err = w.Write([]byte(shortID))
+	if err != nil {
+		http.Error(w, "Failed to write response", http.StatusBadRequest)
+		return
+	}
 }
 
 // Redirect handles the request to redirect to the original URL
