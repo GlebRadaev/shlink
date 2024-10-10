@@ -1,5 +1,7 @@
 # go-musthave-shortener-tpl
 
+[![codecov](https://codecov.io/github/GlebRadaev/shlink/branch/main/graph/badge.svg?token=QSF4QTYP52)](https://codecov.io/github/GlebRadaev/shlink)
+
 Шаблон репозитория для трека «Сервис сокращения URL».
 
 ## Начало работы
