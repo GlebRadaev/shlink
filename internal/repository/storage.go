@@ -12,6 +12,9 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
+// TODO: Интерфейс реализовать
+
+// Add TODO:
 func (s *MemoryStorage) Save(shortID string, longURL string) error {
 	if shortID == "" {
 		return errors.New("shortID cannot be empty")
@@ -20,6 +23,7 @@ func (s *MemoryStorage) Save(shortID string, longURL string) error {
 	return nil
 }
 
+// Get TODO:
 func (s *MemoryStorage) Find(shortID string) (string, bool) {
 	url, exists := s.data[shortID]
 	return url, exists

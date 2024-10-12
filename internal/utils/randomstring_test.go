@@ -28,3 +28,43 @@ func TestGenerate(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidID(t *testing.T) {
+	type args struct {
+		id     string
+		length int
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "Valid ID of length 10",
+			args: args{id: Generate(10), length: 10},
+			want: true,
+		},
+		{
+			name: "Valid ID of length 5",
+			args: args{id: Generate(5), length: 5},
+			want: true,
+		},
+		{
+			name: "Invalid ID: incorrect length",
+			args: args{id: Generate(5), length: 10},
+			want: false,
+		},
+		{
+			name: "Invalid ID: contains special characters",
+			args: args{id: "invalid@ID!", length: 10},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsValidID(tt.args.id, tt.args.length); got != tt.want {
+				t.Errorf("IsValidID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

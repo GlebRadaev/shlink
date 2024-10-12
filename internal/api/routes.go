@@ -5,8 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func RegisterRoutes(r *chi.Mux, urlHandlers *handlers.URLHandlers) {
+func Routes(r *chi.Mux, urlHandlers *handlers.URLHandlers) {
 	r.Post("/", urlHandlers.Shorten)
 	r.Get("/{id}", urlHandlers.Redirect)
-
 }

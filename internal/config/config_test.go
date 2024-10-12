@@ -31,8 +31,10 @@ func TestParseAndLoadConfig_ValidEnvVars(t *testing.T) {
 	os.Setenv("SERVER_ADDRESS", "localhost:8080")
 	os.Setenv("BASE_URL", "http://localhost")
 
-	cfg := config.ParseAndLoadConfig()
-
+	cfg, err := config.ParseAndLoadConfig()
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
 	assert.Equal(t, "localhost:8080", cfg.ServerAddress)
 	assert.Equal(t, "http://localhost", cfg.BaseURL)
 }
@@ -43,8 +45,10 @@ func TestParseAndLoadConfig_MissingEnvVarsAndArgs(t *testing.T) {
 	resetEnv()
 
 	// Call the function to parse the configuration
-	cfg := config.ParseAndLoadConfig()
-
+	cfg, err := config.ParseAndLoadConfig()
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
 	// Check that the configuration is not nil
 	assert.NotNil(t, cfg)
 
@@ -66,8 +70,10 @@ func TestParseAndLoadConfig_CommandLineArgs(t *testing.T) {
 	os.Args = []string{"cmd", "-a", "127.0.0.1:9090", "-b", "http://short.ly"}
 
 	// Call the function to parse the configuration
-	cfg := config.ParseAndLoadConfig()
-
+	cfg, err := config.ParseAndLoadConfig()
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
 	// Check that the configuration values are loaded from command-line arguments
 	assert.Equal(t, "127.0.0.1:9090", cfg.ServerAddress)
 	assert.Equal(t, "http://short.ly", cfg.BaseURL)

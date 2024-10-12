@@ -2,7 +2,7 @@ package config
 
 import (
 	"flag"
-	"log"
+	"fmt"
 
 	"github.com/caarlos0/env/v6"
 )
@@ -12,13 +12,12 @@ type Config struct {
 	BaseURL       string `env:"BASE_URL" envDefault:"http://localhost:8080"`
 }
 
-// ParseAndLoadConfig parses the configuration from environment variables and command-line flags
-func ParseAndLoadConfig() *Config {
+func ParseAndLoadConfig() (*Config, error) {
 	cfg := &Config{}
 
 	// Parsing environment variables
 	if err := env.Parse(cfg); err != nil {
-		log.Fatalf("Failed to parse config from env: %v", err)
+		return nil, fmt.Errorf("failed to parse config from env: %v", err)
 	}
 
 	// Defining command-line flags
@@ -26,5 +25,5 @@ func ParseAndLoadConfig() *Config {
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base address for shortened URL")
 	flag.Parse()
 
-	return cfg
+	return cfg, nil
 }

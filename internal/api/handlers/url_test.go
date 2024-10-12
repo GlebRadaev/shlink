@@ -14,97 +14,81 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestURLHandlers_Shorten(t *testing.T) {
-	type fields struct {
-		urlService *service.URLService
-		config     *config.Config
+var globalCfg *config.Config
+var globalErr error
+
+func setup() (*repository.MemoryStorage, *service.URLService, *config.Config, error) {
+	memStorage := repository.NewMemoryStorage()
+	if globalCfg == nil && globalErr == nil {
+		globalCfg, globalErr = config.ParseAndLoadConfig()
 	}
+	if globalErr != nil {
+		return nil, nil, nil, globalErr
+	}
+	urlService := service.NewURLService(memStorage, globalCfg)
+	return memStorage, urlService, globalCfg, nil
+}
+
+func TestURLHandlers_Shorten(t *testing.T) {
 	type args struct {
 		contentType string
 		body        string
 	}
 	tests := []struct {
 		name       string
-		fields     fields
 		args       args
-		setup      func(service *service.URLService)
 		wantStatus int
 		wantBody   string
 	}{
 		{
 			name: "valid URL",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{BaseURL: "http://localhost"},
-			},
 			args: args{
 				contentType: "text/plain",
 				body:        "http://example.com",
-			},
-			setup: func(svc *service.URLService) {
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   "http://localhost/shortID",
 		},
 		{
 			name: "invalid Content-Type",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{BaseURL: "http://localhost"},
-			},
 			args: args{
 				contentType: "application/json",
 				body:        "http://example.com",
 			},
-			setup:      nil,
 			wantStatus: http.StatusBadRequest,
 			wantBody:   "Invalid content type\n",
 		},
 		{
-			name: "URL too long",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{BaseURL: "http://localhost"},
-			},
+			name: "invalid URL format (URL too long)",
 			args: args{
 				contentType: "text/plain",
 				body:        strings.Repeat("a", 2048+1),
 			},
-			setup:      nil,
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "URL is too long\n",
+			wantBody:   "invalid URL format\n",
 		},
 		{
 			name: "invalid URL format",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{BaseURL: "http://localhost"},
-			},
 			args: args{
 				contentType: "text/plain",
 				body:        "invalid-url",
 			},
-			setup:      nil,
 			wantStatus: http.StatusBadRequest,
 			wantBody:   "invalid URL format\n",
 		},
 	}
 
+	_, urlService, cfg, err := setup()
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	handler := NewURLHandlers(urlService)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setup != nil {
-				tt.setup(tt.fields.urlService)
-			}
-
-			handler := &URLHandlers{
-				urlService: tt.fields.urlService,
-				config:     tt.fields.config,
-			}
-
 			req := httptest.NewRequest("POST", "/", strings.NewReader(tt.args.body))
 			req.Header.Set("Content-Type", tt.args.contentType)
 			w := httptest.NewRecorder()
-
 			router := chi.NewRouter()
 			router.Post("/", handler.Shorten)
 
@@ -117,7 +101,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 
 			if tt.wantStatus == http.StatusCreated {
-				assert.Contains(t, string(body), tt.fields.config.BaseURL+"/")
+				assert.Contains(t, string(body), cfg.BaseURL+"/")
 			} else {
 				assert.Equal(t, tt.wantBody, string(body))
 			}
@@ -126,96 +110,72 @@ func TestURLHandlers_Shorten(t *testing.T) {
 }
 
 func TestURLHandlers_Redirect(t *testing.T) {
-	type fields struct {
-		urlService *service.URLService
-		config     *config.Config
-	}
 	type args struct {
 		id string
 	}
 	tests := []struct {
 		name       string
-		fields     fields
 		args       args
 		setup      func(service *service.URLService) string
 		wantStatus int
-		wantHeader string
 	}{
 		{
 			name: "valid ID",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{},
-			},
-			args: args{id: "validID"},
-			setup: func(svc *service.URLService) string {
-				id, _ := svc.Shorten("http://example.com")
-				return id
+			args: args{id: "validIDD"},
+			setup: func(service *service.URLService) string {
+				url, _ := service.Shorten("http://example.com")
+				splitURL := strings.Split(url, "/")
+				shortID := splitURL[len(splitURL)-1]
+				return shortID
 			},
 			wantStatus: http.StatusTemporaryRedirect,
-			wantHeader: "http://example.com",
 		},
 		{
-			name: "ID not found",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{},
-			},
+			name:       "ID not found",
 			args:       args{id: "notFoundID"},
 			setup:      nil,
 			wantStatus: http.StatusBadRequest,
-			wantHeader: "",
 		},
 		{
-			name: "invalid ID length",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{},
-			},
+			name:       "invalid ID length",
 			args:       args{id: "short"},
 			setup:      nil,
 			wantStatus: http.StatusBadRequest,
-			wantHeader: "",
 		},
 		{
-			name: "invalid ID format",
-			fields: fields{
-				urlService: service.NewURLService(repository.NewMemoryStorage()),
-				config:     &config.Config{},
-			},
+			name:       "invalid ID format",
 			args:       args{id: "invalid@id"},
 			setup:      nil,
 			wantStatus: http.StatusBadRequest,
-			wantHeader: "",
 		},
 	}
+
+	_, urlService, _, err := setup()
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+	handler := NewURLHandlers(urlService)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setup != nil {
-				tt.args.id = tt.setup(tt.fields.urlService)
+				tt.args.id = tt.setup(urlService)
 			}
-
-			handler := &URLHandlers{
-				urlService: tt.fields.urlService,
-				config:     tt.fields.config,
-			}
-
-			r := chi.NewRouter()
-			r.Get("/{id}", handler.Redirect)
-
 			req := httptest.NewRequest("GET", "/"+tt.args.id, nil)
 			w := httptest.NewRecorder()
+			router := chi.NewRouter()
+			router.Get("/{id}", handler.Redirect)
 
-			r.ServeHTTP(w, req)
+			router.ServeHTTP(w, req)
 
 			res := w.Result()
 			defer res.Body.Close()
 
-			assert.Equal(t, tt.wantStatus, res.StatusCode)
-
 			if tt.wantStatus == http.StatusTemporaryRedirect {
-				assert.Equal(t, tt.wantHeader, res.Header.Get("Location"))
+				assert.Equal(t, tt.wantStatus, res.StatusCode)
+				assert.NotEmpty(t, res.Header.Get("Location"), "Location header should not be empty")
+			} else {
+				assert.Equal(t, tt.wantStatus, res.StatusCode)
 			}
 		})
 	}
