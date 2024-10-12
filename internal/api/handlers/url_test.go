@@ -8,8 +8,11 @@ import (
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
-	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
+
+	repo "github.com/GlebRadaev/shlink/internal/repository"
+	repository "github.com/GlebRadaev/shlink/internal/repository/inmemory"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,16 +20,18 @@ import (
 var globalCfg *config.Config
 var globalErr error
 
-func setup() (*repository.MemoryStorage, *service.URLService, *config.Config, error) {
-	memStorage := repository.NewMemoryStorage()
+func setup() (repo.Repository, *service.URLService, *config.Config, error) {
+	storage := repository.NewMemoryStorage()
+
 	if globalCfg == nil && globalErr == nil {
 		globalCfg, globalErr = config.ParseAndLoadConfig()
 	}
 	if globalErr != nil {
 		return nil, nil, nil, globalErr
 	}
-	urlService := service.NewURLService(memStorage, globalCfg)
-	return memStorage, urlService, globalCfg, nil
+
+	urlService := service.NewURLService(storage, globalCfg)
+	return storage, urlService, globalCfg, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {

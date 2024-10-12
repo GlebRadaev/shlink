@@ -32,13 +32,13 @@ func TestMemoryStorage_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := NewMemoryStorage()
 
-			err := storage.Save(tt.shortID, tt.longURL)
+			err := storage.Add(tt.shortID, tt.longURL)
 
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
-				savedURL, exists := storage.Find(tt.shortID)
+				savedURL, exists := storage.Get(tt.shortID)
 				assert.True(t, exists, "Expected the shortID to be saved, but it was not found")
 				assert.Equal(t, tt.longURL, savedURL, "Expected the longURL to match the saved value")
 			}
@@ -75,7 +75,7 @@ func TestMemoryStorage_Find(t *testing.T) {
 			storage := &MemoryStorage{
 				data: tt.storedData,
 			}
-			url, exists := storage.Find(tt.shortID)
+			url, exists := storage.Get(tt.shortID)
 			assert.Equal(t, tt.wantExists, exists)
 			if tt.wantExists {
 				assert.Equal(t, tt.wantURL, url, "Expected the URL to match the stored value")

@@ -2,19 +2,19 @@ package service
 
 import (
 	"errors"
-	"log"
 	"strings"
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
-	"github.com/GlebRadaev/shlink/internal/repository"
+	repo "github.com/GlebRadaev/shlink/internal/repository"
+	repository "github.com/GlebRadaev/shlink/internal/repository/inmemory"
 	"github.com/stretchr/testify/assert"
 )
 
 var globalCfg *config.Config
 var globalErr error
 
-func setup() (*repository.MemoryStorage, *URLService, *config.Config, error) {
+func setup() (repo.Repository, *URLService, *config.Config, error) {
 	memStorage := repository.NewMemoryStorage()
 	if globalCfg == nil && globalErr == nil {
 		globalCfg, globalErr = config.ParseAndLoadConfig()
@@ -74,7 +74,7 @@ func TestURLService_Shorten(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, len(cfg.BaseURL)+1+MaxIDLength, len(got), "Expected ID length to be %d, but got %d", len(cfg.BaseURL)+1+MaxIDLength, len(got))
-				storedURL, found := memStorage.Find(strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
+				storedURL, found := memStorage.Get(strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
 				assert.True(t, found, "Expected the ID to be stored, but it was not found")
 				assert.Equal(t, tt.args.url, storedURL, "Stored URL mismatch: got %v, want %v", storedURL, tt.args.url)
 			}
@@ -97,7 +97,7 @@ func TestURLService_GetOriginal(t *testing.T) {
 			name: "valid ID",
 			args: args{id: "testIDid"},
 			setup: func(storage *repository.MemoryStorage) {
-				_ = storage.Save("testIDid", "http://example.com")
+				_ = storage.Add("testIDid", "http://example.com")
 			},
 			want:    "http://example.com",
 			wantErr: nil,
@@ -127,7 +127,7 @@ func TestURLService_GetOriginal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := repository.NewMemoryStorage()
+			storage := repository.NewMemoryStorage().(*repository.MemoryStorage)
 			s := &URLService{
 				storage: storage,
 			}
@@ -135,7 +135,6 @@ func TestURLService_GetOriginal(t *testing.T) {
 				tt.setup(storage)
 			}
 			got, err := s.GetOriginal(tt.args.id)
-			log.Print(got)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {

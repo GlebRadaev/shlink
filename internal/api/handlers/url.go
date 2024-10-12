@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -36,7 +35,6 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	url := string(body)
 	shortID, err := h.urlService.Shorten(url)
-	log.Print(err)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

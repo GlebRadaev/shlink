@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/GlebRadaev/shlink/internal/config"
-	"github.com/GlebRadaev/shlink/internal/repository"
+	repository "github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/utils"
 )
 
@@ -16,12 +16,12 @@ const (
 
 // URLService handles the business logic for shortening URLs
 type URLService struct {
-	storage *repository.MemoryStorage
+	storage repository.Repository
 	config  *config.Config
 }
 
 // NewURLService creates a new URLService
-func NewURLService(storage *repository.MemoryStorage, config *config.Config) *URLService {
+func NewURLService(storage repository.Repository, config *config.Config) *URLService {
 	return &URLService{
 		storage: storage,
 		config:  config,
@@ -35,7 +35,7 @@ func (s *URLService) Shorten(url string) (string, error) {
 		return "", err
 	}
 	shortID := utils.Generate(MaxIDLength)
-	err = s.storage.Save(shortID, url)
+	err = s.storage.Add(shortID, url)
 	if err != nil {
 		return "", err
 	}
@@ -49,7 +49,7 @@ func (s *URLService) GetOriginal(id string) (string, error) {
 		return "", errors.New("invalid ID")
 	}
 
-	url, found := s.storage.Find(id)
+	url, found := s.storage.Get(id)
 	if !found {
 		return "", errors.New("URL not found")
 	}
