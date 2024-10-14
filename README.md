@@ -1,5 +1,17 @@
 # go-musthave-shortener-tpl
 
+<p align="center">
+  <a href="https://go.dev/">
+    <img src="https://img.shields.io/badge/golang-v1.22.7-lightblue" height="25" alt="Go version"/>
+  </a>
+  <a href="https://codecov.io/github/GlebRadaev/shlink">
+    <img src="https://codecov.io/github/GlebRadaev/shlink/branch/main/graph/badge.svg?token=QSF4QTYP52" height="25" alt="Code Coverage">
+  </a>
+  <a href="https://github.com/GlebRadaev/shlink/actions/workflows/shortenertest.yml">
+    <img src="https://github.com/GlebRadaev/shlink/actions/workflows/shortenertest.yml/badge.svg?branch=main" height="25" alt="Autotests">
+  </a>
+</p>
+
 Шаблон репозитория для трека «Сервис сокращения URL».
 
 ## Начало работы
