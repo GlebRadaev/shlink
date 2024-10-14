@@ -97,7 +97,7 @@ func TestURLService_GetOriginal(t *testing.T) {
 			name: "valid ID",
 			args: args{id: "testIDid"},
 			setup: func(storage *repository.MemoryStorage) {
-				_ = storage.Add("testIDid", "http://example.com")
+				_ = storage.AddUrl("testIDid", "http://example.com")
 			},
 			want:    "http://example.com",
 			wantErr: nil,

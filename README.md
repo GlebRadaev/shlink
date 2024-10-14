@@ -7,8 +7,8 @@
   <a href="https://codecov.io/github/GlebRadaev/shlink">
     <img src="https://codecov.io/github/GlebRadaev/shlink/branch/main/graph/badge.svg?token=QSF4QTYP52" height="25" alt="Code Coverage">
   </a>
-  <a href="https://github.com/GlebRadaev/shlink/actions">
-    <img src="https://img.shields.io/github/check-runs/GlebRadaev/shlink/main" height="25" alt="Check branch">
+  <a href="https://github.com/GlebRadaev/shlink/actions/workflows/shortenertest.yml">
+    <img src="https://github.com/GlebRadaev/shlink/actions/workflows/shortenertest.yml/badge.svg?branch=main" height="25" alt="Autotests">
   </a>
 </p>
 

@@ -1,4 +1,4 @@
-package repository
+package inmemory
 
 import (
 	"errors"
@@ -16,7 +16,7 @@ func NewMemoryStorage() repository.Repository {
 	}
 }
 
-func (s *MemoryStorage) Add(key, value string) error {
+func (s *MemoryStorage) AddUrl(key, value string) error {
 	if key == "" {
 		return errors.New("shortID cannot be empty")
 	}

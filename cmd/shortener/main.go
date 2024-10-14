@@ -8,7 +8,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/api/handlers"
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/middleware"
-	repository "github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
 
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -25,7 +25,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	storage := repository.NewMemoryStorage()
+	storage := inmemory.NewMemoryStorage()
 	urlService := service.NewURLService(storage, cfg)
 	urlHandlers := handlers.NewURLHandlers(urlService)
 

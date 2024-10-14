@@ -10,9 +10,7 @@ func ValidateURL(urlStr string) (*url.URL, error) {
 	if err != nil {
 		return nil, errors.New("invalid URL format")
 	}
-	switch uri.Scheme {
-	case "http", "https":
-	default:
+	if !(uri.Scheme == "http" || uri.Scheme == "https") {
 		return nil, errors.New("invalid URL scheme")
 	}
 	// off in development mode
