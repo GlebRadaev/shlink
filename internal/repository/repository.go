@@ -1,6 +1,6 @@
 package repository
 
 type Repository interface {
-	AddUrl(string, string) error
+	AddURL(string, string) error
 	Get(string) (string, bool)
 }

@@ -16,7 +16,7 @@ func NewMemoryStorage() repository.Repository {
 	}
 }
 
-func (s *MemoryStorage) AddUrl(key, value string) error {
+func (s *MemoryStorage) AddURL(key, value string) error {
 	if key == "" {
 		return errors.New("shortID cannot be empty")
 	}

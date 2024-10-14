@@ -32,7 +32,7 @@ func TestMemoryStorage_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := NewMemoryStorage()
 
-			err := storage.AddUrl(tt.shortID, tt.longURL)
+			err := storage.AddURL(tt.shortID, tt.longURL)
 
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())

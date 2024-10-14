@@ -35,7 +35,7 @@ func (s *URLService) Shorten(url string) (string, error) {
 		return "", err
 	}
 	shortID := utils.Generate(MaxIDLength)
-	err = s.storage.AddUrl(shortID, url)
+	err = s.storage.AddURL(shortID, url)
 	if err != nil {
 		return "", err
 	}
