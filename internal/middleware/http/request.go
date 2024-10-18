@@ -1,18 +1,56 @@
 package custom
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/GlebRadaev/shlink/internal/logger"
 )
 
-func RequestMiddleware(next http.Handler) http.Handler {
+type (
+	responseData struct {
+		status int
+		size   int
+	}
+	loggingResponseWriter struct {
+		http.ResponseWriter
+		responseData *responseData
+	}
+)
+
+func RequestMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger := logger.NewLogger()
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		duration := time.Since(start)
-		if duration > 60*time.Second {
-			log.Printf("Request is too slow: %s %s completed in %v", r.Method, r.URL.Path, duration)
+		responseData := &responseData{
+			status: 0,
+			size:   0,
 		}
+		lw := loggingResponseWriter{
+			ResponseWriter: w,
+			responseData:   responseData,
+		}
+		logger.Named("Request").Infoln(
+			"uri", r.RequestURI,
+			"method", r.Method,
+		)
+		h.ServeHTTP(&lw, r)
+		duration := time.Since(start)
+		logger.Named("Response").Infoln(
+			"status", responseData.status,
+			"size", responseData.size,
+			"duration", duration,
+		)
 	})
+}
+
+func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	size, err := r.ResponseWriter.Write(b)
+	r.responseData.size += size
+	return size, err
+}
+
+func (r *loggingResponseWriter) WriteHeader(statusCode int) {
+	r.ResponseWriter.WriteHeader(statusCode)
+	r.responseData.status = statusCode
 }
