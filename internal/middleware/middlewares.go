@@ -14,7 +14,6 @@ func Middleware(r *chi.Mux) {
 
 func AddBaseMiddlewares(r *chi.Mux) {
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 }
 
