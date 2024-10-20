@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -181,6 +182,95 @@ func TestURLHandlers_Redirect(t *testing.T) {
 				assert.NotEmpty(t, res.Header.Get("Location"), "Location header should not be empty")
 			} else {
 				assert.Equal(t, tt.wantStatus, res.StatusCode)
+			}
+		})
+	}
+}
+
+func TestURLHandlers_ShortenJSON(t *testing.T) {
+	type args struct {
+		contentType string
+		body        string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "valid JSON request",
+			args: args{
+				contentType: "application/json",
+				body:        `{"url": "http://example.com"}`,
+			},
+			wantStatus: http.StatusCreated,
+			wantBody:   `http://localhost:8080/`,
+		},
+		{
+			name: "invalid Content-Type",
+			args: args{
+				contentType: "text/plain",
+				body:        `{"url": "http://example.com"}`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "Invalid content type\n",
+		},
+		{
+			name: "empty request body",
+			args: args{
+				contentType: "application/json",
+				body:        "",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "Cannot decode request\n",
+		},
+		{
+			name: "invalid JSON format",
+			args: args{
+				contentType: "application/json",
+				body:        `{"invalid_json"`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "Cannot decode request\n",
+		},
+	}
+
+	_, urlService, _, err := setup()
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/shorten", strings.NewReader(tt.args.body))
+			req.Header.Set("Content-Type", tt.args.contentType)
+			w := httptest.NewRecorder()
+
+			router := chi.NewRouter()
+			router.Post("/api/shorten", handler.ShortenJSON)
+			router.ServeHTTP(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			if tt.wantStatus == http.StatusCreated {
+				var resp map[string]string
+				err := json.Unmarshal(body, &resp)
+				assert.NoError(t, err, "Response should be valid JSON")
+
+				resultURL, ok := resp["result"]
+				assert.True(t, ok, `"result" key should exist in the response`)
+				assert.True(t, strings.HasPrefix(resultURL, tt.wantBody),
+					"Expected result URL to start with %s, but got %s", tt.wantBody, resultURL)
+				// assert.Equal(t, tt.wantBody, resultURL, "Unexpected result URL")
+			} else {
+				assert.Equal(t, tt.wantBody, string(body))
 			}
 		})
 	}

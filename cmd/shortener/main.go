@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/GlebRadaev/shlink/internal/api"
 	"github.com/GlebRadaev/shlink/internal/api/handlers"
 	"github.com/GlebRadaev/shlink/internal/config"
+	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/middleware"
 	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
 
@@ -16,15 +18,19 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Application error: %v", err)
 	}
 }
 
 func run() error {
 	cfg, err := config.ParseAndLoadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	log := logger.NewLogger()
+	defer logger.SyncLogger()
+
 	storage := inmemory.NewMemoryStorage()
 	urlService := service.NewURLService(storage, cfg)
 	urlHandlers := handlers.NewURLHandlers(urlService)
@@ -33,7 +39,12 @@ func run() error {
 	middleware.Middleware(r)
 	api.Routes(r, urlHandlers)
 
-	log.Printf("Server is running on %s", cfg.ServerAddress)
-	log.Printf("Base URL is %s", cfg.BaseURL)
-	return http.ListenAndServe(cfg.ServerAddress, r)
+	log.Named("Starting server").Infoln(
+		"address", cfg.ServerAddress,
+		"baseURL", cfg.BaseURL,
+	)
+	if err := http.ListenAndServe(cfg.ServerAddress, r); err != nil {
+		return fmt.Errorf("server failed: %w", err)
+	}
+	return nil
 }
