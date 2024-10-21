@@ -56,15 +56,6 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			wantBody:   "http://localhost/shortID",
 		},
 		{
-			name: "invalid Content-Type",
-			args: args{
-				contentType: "application/json",
-				body:        "http://example.com",
-			},
-			wantStatus: http.StatusBadRequest,
-			wantBody:   "Invalid content type\n",
-		},
-		{
 			name: "invalid URL format (URL too long)",
 			args: args{
 				contentType: "text/plain",

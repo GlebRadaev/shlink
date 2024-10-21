@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	compress "github.com/GlebRadaev/shlink/internal/middleware/compress"
 	http "github.com/GlebRadaev/shlink/internal/middleware/http"
 
 	"github.com/go-chi/chi/v5"
@@ -19,4 +20,5 @@ func AddBaseMiddlewares(r *chi.Mux) {
 
 func AddAdvancedMiddlewares(r *chi.Mux) {
 	r.Use(http.RequestMiddleware)
+	r.Use(compress.CompressMiddleware)
 }

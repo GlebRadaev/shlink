@@ -24,12 +24,6 @@ func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 
 // Shorten handles the request to shorten a URL
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
-	contentType := r.Header.Get("Content-Type")
-	parts := strings.Split(contentType, ";")
-	if len(parts) == 0 || !strings.Contains(parts[0], "text/plain") {
-		http.Error(w, "Invalid content type", http.StatusBadRequest)
-		return
-	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
