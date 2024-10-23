@@ -25,7 +25,7 @@ func setup(t *testing.T) (interfaces.Repository, interfaces.Repository, *URLServ
 	}
 	memStorage := inmemory.NewMemoryStorage()
 	fileRepo := filestorage.NewFileStorage(globalCfg.FileStoragePath)
-	urlService := NewURLService(memStorage, fileRepo, globalCfg)
+	urlService := NewURLService(globalCfg, memStorage, fileRepo)
 
 	t.Cleanup(func() {
 		err := os.Remove(globalCfg.FileStoragePath)

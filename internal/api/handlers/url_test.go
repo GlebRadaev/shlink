@@ -38,7 +38,7 @@ func setup() (*service.URLService, *config.Config, error) {
 		os.Remove(tempFile.Name())
 	}()
 	fileRepo := filestorage.NewFileStorage(tempFile.Name())
-	urlService := service.NewURLService(memoryRepo, fileRepo, globalCfg)
+	urlService := service.NewURLService(globalCfg, memoryRepo, fileRepo)
 	return urlService, globalCfg, nil
 }
 

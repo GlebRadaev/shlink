@@ -32,7 +32,7 @@ func run() error {
 	defer logger.SyncLogger()
 
 	memoryRepo, fileRepo := repository.RepositoryFactory(cfg)
-	urlService := service.NewURLService(memoryRepo, fileRepo, cfg)
+	urlService := service.NewURLService(cfg, memoryRepo, fileRepo)
 	urlHandlers := handlers.NewURLHandlers(urlService)
 
 	r := chi.NewRouter()
