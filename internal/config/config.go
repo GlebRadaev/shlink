@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	ServerAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
-	BaseURL       string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+	ServerAddress   string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
+	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"`
 }
 
 func ParseAndLoadConfig() (*Config, error) {
@@ -23,6 +24,7 @@ func ParseAndLoadConfig() (*Config, error) {
 	// Defining command-line flags
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "HTTP server address")
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base address for shortened URL")
+	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "Path to file storage")
 	flag.Parse()
 
 	return cfg, nil
