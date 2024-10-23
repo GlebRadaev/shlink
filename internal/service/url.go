@@ -5,26 +5,36 @@ import (
 	"fmt"
 
 	"github.com/GlebRadaev/shlink/internal/config"
-	repository "github.com/GlebRadaev/shlink/internal/repository"
+	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/utils"
 )
 
 const (
-	MaxIDLength  = 8
-	MaxURLLength = 2048
+	MaxIDLength = 8
 )
 
 // URLService handles the business logic for shortening URLs
 type URLService struct {
-	storage repository.Repository
-	config  *config.Config
+	memoryRepo interfaces.Repository
+	fileRepo   interfaces.Repository
+	config     *config.Config
 }
 
 // NewURLService creates a new URLService
-func NewURLService(storage repository.Repository, config *config.Config) *URLService {
+func NewURLService(memoryRepo, fileRepo interfaces.Repository, config *config.Config) *URLService {
+	copyData(fileRepo, memoryRepo)
 	return &URLService{
-		storage: storage,
-		config:  config,
+		memoryRepo: memoryRepo,
+		fileRepo:   fileRepo,
+		config:     config,
+	}
+}
+
+func copyData(from, to interfaces.Repository) {
+	for shortURL, url := range from.GetAll() {
+		if err := to.AddURL(shortURL, url); err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
@@ -35,7 +45,11 @@ func (s *URLService) Shorten(url string) (string, error) {
 		return "", err
 	}
 	shortID := utils.Generate(MaxIDLength)
-	err = s.storage.AddURL(shortID, url)
+	err = s.memoryRepo.AddURL(shortID, url)
+	if err != nil {
+		return "", err
+	}
+	err = s.fileRepo.AddURL(shortID, url)
 	if err != nil {
 		return "", err
 	}
@@ -49,7 +63,7 @@ func (s *URLService) GetOriginal(id string) (string, error) {
 		return "", errors.New("invalid ID")
 	}
 
-	url, found := s.storage.Get(id)
+	url, found := s.memoryRepo.Get(id)
 	if !found {
 		return "", errors.New("URL not found")
 	}

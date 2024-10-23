@@ -5,14 +5,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/service"
 
-	repo "github.com/GlebRadaev/shlink/internal/repository"
-	repository "github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/repository/filestorage"
+	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -21,18 +22,24 @@ import (
 var globalCfg *config.Config
 var globalErr error
 
-func setup() (repo.Repository, *service.URLService, *config.Config, error) {
-	storage := repository.NewMemoryStorage()
-
+func setup() (*service.URLService, *config.Config, error) {
 	if globalCfg == nil && globalErr == nil {
 		globalCfg, globalErr = config.ParseAndLoadConfig()
 	}
 	if globalErr != nil {
-		return nil, nil, nil, globalErr
+		return nil, nil, globalErr
 	}
-
-	urlService := service.NewURLService(storage, globalCfg)
-	return storage, urlService, globalCfg, nil
+	memoryRepo := inmemory.NewMemoryStorage()
+	tempFile, err := os.CreateTemp("", "filestorage-*.json")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() {
+		os.Remove(tempFile.Name())
+	}()
+	fileRepo := filestorage.NewFileStorage(tempFile.Name())
+	urlService := service.NewURLService(memoryRepo, fileRepo, globalCfg)
+	return urlService, globalCfg, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {
@@ -75,7 +82,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 		},
 	}
 
-	_, urlService, cfg, err := setup()
+	urlService, cfg, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -147,7 +154,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 		},
 	}
 
-	_, urlService, _, err := setup()
+	urlService, _, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -227,7 +234,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 		},
 	}
 
-	_, urlService, _, err := setup()
+	urlService, _, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}

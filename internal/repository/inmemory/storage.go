@@ -3,14 +3,14 @@ package inmemory
 import (
 	"errors"
 
-	"github.com/GlebRadaev/shlink/internal/repository"
+	"github.com/GlebRadaev/shlink/internal/interfaces"
 )
 
 type MemoryStorage struct {
 	data map[string]string
 }
 
-func NewMemoryStorage() repository.Repository {
+func NewMemoryStorage() interfaces.Repository {
 	return &MemoryStorage{
 		data: make(map[string]string),
 	}
@@ -28,4 +28,8 @@ func (s *MemoryStorage) Get(key string) (string, bool) {
 	url, exists := s.data[key]
 
 	return url, exists
+}
+
+func (s *MemoryStorage) GetAll() map[string]string {
+	return s.data
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/middleware"
-	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/repository"
 
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -31,8 +31,8 @@ func run() error {
 	log := logger.NewLogger()
 	defer logger.SyncLogger()
 
-	storage := inmemory.NewMemoryStorage()
-	urlService := service.NewURLService(storage, cfg)
+	memoryRepo, fileRepo := repository.RepositoryFactory(cfg)
+	urlService := service.NewURLService(memoryRepo, fileRepo, cfg)
 	urlHandlers := handlers.NewURLHandlers(urlService)
 
 	r := chi.NewRouter()
@@ -42,6 +42,7 @@ func run() error {
 	log.Named("Starting server").Infoln(
 		"address", cfg.ServerAddress,
 		"baseURL", cfg.BaseURL,
+		"fileStoragePath", cfg.FileStoragePath,
 	)
 	if err := http.ListenAndServe(cfg.ServerAddress, r); err != nil {
 		return fmt.Errorf("server failed: %w", err)
