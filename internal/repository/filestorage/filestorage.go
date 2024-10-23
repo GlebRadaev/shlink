@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sync"
 
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/interfaces"
@@ -13,6 +14,7 @@ import (
 
 type FileStorage struct {
 	filename string
+	mu       sync.RWMutex
 }
 
 func NewFileStorage(filename string) interfaces.Repository {
@@ -23,6 +25,8 @@ func (s *FileStorage) AddURL(key, value string) error {
 	if key == "" {
 		return errors.New("shortID cannot be empty")
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	file, err := os.OpenFile(s.filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.New("failed to open file for writing")
@@ -42,6 +46,8 @@ func (s *FileStorage) AddURL(key, value string) error {
 }
 
 func (s *FileStorage) Get(id string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	data, err := s.loadAll()
 	if err != nil {
 		return "", false
@@ -59,6 +65,8 @@ func (s *FileStorage) Get(id string) (string, bool) {
 }
 
 func (s *FileStorage) GetAll() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	result := make(map[string]string)
 	data, err := s.loadAll()
 	if err != nil {
@@ -71,6 +79,8 @@ func (s *FileStorage) GetAll() map[string]string {
 }
 
 func (s *FileStorage) loadAll() ([]dto.URLDTO, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	file, err := os.Open(s.filename)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

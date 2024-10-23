@@ -74,7 +74,6 @@ func (s *URLService) GetOriginal(id string) (string, error) {
 		s.log.Warnf("Invalid ID: %s", id)
 		return "", errors.New("invalid ID")
 	}
-
 	url, found := s.memoryRepo.Get(id)
 	if !found {
 		s.log.Warnf("URL not found for ID: %s", id)
