@@ -3,46 +3,37 @@ package logger
 import (
 	"log"
 	"os"
-	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var (
-	once   sync.Once
-	logger *zap.SugaredLogger
-)
+type Logger struct {
+	*zap.SugaredLogger
+}
 
-func loadLogger(level zapcore.Level) {
+func NewLogger(level string) (*Logger, error) {
+	var lvl zapcore.Level
+	if err := lvl.UnmarshalText([]byte(level)); err != nil {
+		log.Printf("Неверный уровень логирования: %s, используется уровень INFO по умолчанию", level)
+		lvl = zapcore.InfoLevel
+	}
+
 	stdout := zapcore.AddSync(os.Stdout)
-
 	developmentCfg := zap.NewDevelopmentEncoderConfig()
 	developmentCfg.TimeKey = "timestamp"
 	developmentCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 	developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
-	developmentConsoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-	core := zapcore.NewTee(
-		zapcore.NewCore(developmentConsoleEncoder, stdout, level),
+	core := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(developmentCfg),
+		stdout,
+		lvl,
 	)
-	logger = zap.New(core).Sugar()
+
+	return &Logger{zap.New(core).Sugar()}, nil
 }
 
-func NewLogger(level ...string) *zap.SugaredLogger {
-	once.Do(func() {
-		lvl := zapcore.InfoLevel
-		if len(level) > 0 {
-			if err := lvl.UnmarshalText([]byte(level[0])); err != nil {
-				log.Printf("Invalid log level: %s, defaulting to INFO", level[0])
-			}
-		}
-		loadLogger(lvl)
-	})
-	return logger
-}
-func SyncLogger() {
-	if logger != nil {
-		_ = logger.Sync()
-	}
+func (l *Logger) Sync() {
+	_ = l.SugaredLogger.Sync()
 }

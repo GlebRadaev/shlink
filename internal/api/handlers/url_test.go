@@ -5,41 +5,29 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
+	"github.com/GlebRadaev/shlink/internal/logger"
+	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
 
-	"github.com/GlebRadaev/shlink/internal/repository/filestorage"
-	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/service/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
-var globalCfg *config.Config
-var globalErr error
-
-func setup() (*service.URLService, *config.Config, error) {
-	if globalCfg == nil && globalErr == nil {
-		globalCfg, globalErr = config.ParseAndLoadConfig()
-	}
-	if globalErr != nil {
-		return nil, nil, globalErr
-	}
-	memoryRepo := inmemory.NewMemoryStorage()
-	tempFile, err := os.CreateTemp("", "filestorage-*.json")
+func setup() (*url.URLService, *config.Config, error) {
+	cfg, err := config.ParseAndLoadConfig()
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() {
-		os.Remove(tempFile.Name())
-	}()
-	fileRepo := filestorage.NewFileStorage(tempFile.Name())
-	urlService := service.NewURLService(globalCfg, memoryRepo, fileRepo)
-	return urlService, globalCfg, nil
+	log, _ := logger.NewLogger("info")
+	repositories := repository.NewRepositoryFactory(cfg)
+	services := service.NewServiceFactory(cfg, log, repositories)
+	return services.URLService, cfg, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {
@@ -120,13 +108,13 @@ func TestURLHandlers_Redirect(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       args
-		setup      func(service *service.URLService) string
+		setup      func(service *url.URLService) string
 		wantStatus int
 	}{
 		{
 			name: "valid ID",
 			args: args{id: "validIDD"},
-			setup: func(service *service.URLService) string {
+			setup: func(service *url.URLService) string {
 				url, _ := service.Shorten("http://example.com")
 				splitURL := strings.Split(url, "/")
 				shortID := splitURL[len(splitURL)-1]
@@ -215,15 +203,6 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 			wantBody:   "Invalid content type\n",
 		},
 		{
-			name: "empty request body",
-			args: args{
-				contentType: "application/json",
-				body:        "",
-			},
-			wantStatus: http.StatusBadRequest,
-			wantBody:   "Cannot decode request\n",
-		},
-		{
 			name: "invalid JSON format",
 			args: args{
 				contentType: "application/json",
@@ -266,7 +245,6 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 				assert.True(t, ok, `"result" key should exist in the response`)
 				assert.True(t, strings.HasPrefix(resultURL, tt.wantBody),
 					"Expected result URL to start with %s, but got %s", tt.wantBody, resultURL)
-				// assert.Equal(t, tt.wantBody, resultURL, "Unexpected result URL")
 			} else {
 				assert.Equal(t, tt.wantBody, string(body))
 			}

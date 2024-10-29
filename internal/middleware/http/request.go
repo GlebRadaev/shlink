@@ -20,7 +20,7 @@ type (
 
 func RequestMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := logger.NewLogger()
+		logger, _ := logger.NewLogger("info")
 		start := time.Now()
 		responseData := &responseData{
 			status: 0,

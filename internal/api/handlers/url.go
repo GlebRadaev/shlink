@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
+	"github.com/GlebRadaev/shlink/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -58,34 +58,23 @@ func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
-	contentType := r.Header.Get("Content-Type")
-	parts := strings.Split(contentType, ";")
-	if len(parts) == 0 || !strings.Contains(parts[0], "application/json") {
-		http.Error(w, "Invalid content type", http.StatusBadRequest)
+	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if r.Body == nil {
-		http.Error(w, "Empty request body", http.StatusBadRequest)
+	var data dto.ShortenJSONRequestDTO
+	if err := data.ValidateRequest(r.Body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var req dto.ShortenJSONRequestDTO
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		http.Error(w, "Cannot decode request", http.StatusBadRequest)
-		return
-	}
-	shortID, err := h.urlService.Shorten(req.URL)
+	shortID, err := h.urlService.Shorten(data.URL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	resp := dto.ShortenJSONResponseDTO{
-		Result: shortID,
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(resp); err != nil {
+	if err := json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID}); err != nil {
 		http.Error(w, "Error encoding response", http.StatusBadRequest)
 		return
 	}

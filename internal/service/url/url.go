@@ -1,4 +1,4 @@
-package service
+package url
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/logger"
+	"github.com/GlebRadaev/shlink/internal/service/backup"
 	"github.com/GlebRadaev/shlink/internal/utils"
 	"go.uber.org/zap"
 )
@@ -19,28 +20,39 @@ const (
 type URLService struct {
 	log        *zap.SugaredLogger
 	config     *config.Config
+	backup     *backup.BackupService
 	memoryRepo interfaces.Repository
-	fileRepo   interfaces.Repository
 }
 
 // NewURLService creates a new URLService
-func NewURLService(config *config.Config, memoryRepo, fileRepo interfaces.Repository) *URLService {
-	log := logger.NewLogger()
-	copyData(fileRepo, memoryRepo)
+func NewURLService(config *config.Config, log *logger.Logger, backup *backup.BackupService, memoryRepo interfaces.Repository) *URLService {
 	return &URLService{
 		log:        log.Named("URLService"),
 		config:     config,
+		backup:     backup,
 		memoryRepo: memoryRepo,
-		fileRepo:   fileRepo,
 	}
 }
 
-func copyData(from, to interfaces.Repository) {
-	for shortURL, url := range from.GetAll() {
-		if err := to.AddURL(shortURL, url); err != nil {
-			fmt.Println(err)
-		}
+func (s *URLService) LoadData() error {
+	data, err := s.backup.LoadData()
+	if err != nil {
+		return err
 	}
+	for shortURL, originalURL := range data {
+		_ = s.memoryRepo.AddURL(shortURL, originalURL)
+	}
+	s.log.Info("Data successfully loaded from backup.")
+	return nil
+}
+
+func (s *URLService) SaveData() error {
+	data := s.memoryRepo.GetAll()
+	if err := s.backup.SaveData(data); err != nil {
+		return err
+	}
+	s.log.Info("Data successfully saved to backup.")
+	return nil
 }
 
 // ShortenURL shortens a given URL and returns the short version
@@ -55,11 +67,6 @@ func (s *URLService) Shorten(url string) (string, error) {
 	err = s.memoryRepo.AddURL(shortID, url)
 	if err != nil {
 		s.log.Errorf("Failed to add URL to memory repository: %v", err)
-		return "", err
-	}
-	err = s.fileRepo.AddURL(shortID, url)
-	if err != nil {
-		s.log.Errorf("Failed to add URL to file repository: %v", err)
 		return "", err
 	}
 	s.log.Infof("Successfully shortened URL: %s -> %s", url, shortID)

@@ -1,39 +1,29 @@
-package service
+package url_test
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/interfaces"
-	"github.com/GlebRadaev/shlink/internal/repository/filestorage"
-	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/logger"
+	"github.com/GlebRadaev/shlink/internal/repository"
+	"github.com/GlebRadaev/shlink/internal/service"
+	"github.com/GlebRadaev/shlink/internal/service/url"
+
 	"github.com/stretchr/testify/assert"
 )
 
-var globalCfg *config.Config
-var globalErr error
-
-func setup(t *testing.T) (interfaces.Repository, interfaces.Repository, *URLService, *config.Config, error) {
-	if globalCfg == nil && globalErr == nil {
-		globalCfg, globalErr = config.ParseAndLoadConfig()
+func setup() (interfaces.Repository, *url.URLService, *config.Config, error) {
+	cfg, err := config.ParseAndLoadConfig()
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	if globalErr != nil {
-		return nil, nil, nil, nil, globalErr
-	}
-	memStorage := inmemory.NewMemoryStorage()
-	fileRepo := filestorage.NewFileStorage(globalCfg.FileStoragePath)
-	urlService := NewURLService(globalCfg, memStorage, fileRepo)
-
-	t.Cleanup(func() {
-		err := os.Remove(globalCfg.FileStoragePath)
-		if err != nil {
-			t.Errorf("Failed to remove test file: %v", err)
-		}
-	})
-	return memStorage, fileRepo, urlService, globalCfg, nil
+	log, _ := logger.NewLogger("info")
+	repositories := repository.NewRepositoryFactory(cfg)
+	services := service.NewServiceFactory(cfg, log, repositories)
+	return repositories.MemoryRepo, services.URLService, cfg, nil
 }
 
 func TestURLService_Shorten(t *testing.T) {
@@ -67,7 +57,7 @@ func TestURLService_Shorten(t *testing.T) {
 		},
 	}
 
-	memoryRepo, fileRepo, urlService, cfg, err := setup(t)
+	memoryRepo, urlService, cfg, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -79,15 +69,11 @@ func TestURLService_Shorten(t *testing.T) {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, len(cfg.BaseURL)+1+MaxIDLength, len(got), "Expected ID length to be %d, but got %d", len(cfg.BaseURL)+1+MaxIDLength, len(got))
+				assert.Equal(t, len(cfg.BaseURL)+1+8, len(got), "Expected ID length to be %d, but got %d", len(cfg.BaseURL)+1+8, len(got))
 
 				storedURL, found := memoryRepo.Get(strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
 				assert.True(t, found, "Expected the ID to be stored in memoryRepo, but it was not found")
 				assert.Equal(t, tt.args.url, storedURL, "Stored URL mismatch in memoryRepo: got %v, want %v", storedURL, tt.args.url)
-
-				storedURL, found = fileRepo.Get(strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
-				assert.True(t, found, "Expected the ID to be stored in fileRepo, but it was not found")
-				assert.Equal(t, tt.args.url, storedURL, "Stored URL mismatch in fileRepo: got %v, want %v", storedURL, tt.args.url)
 			}
 		})
 	}
@@ -136,7 +122,7 @@ func TestURLService_GetOriginal(t *testing.T) {
 		},
 	}
 
-	memStorage, fileRepo, urlService, _, err := setup(t)
+	memStorage, urlService, _, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -145,7 +131,6 @@ func TestURLService_GetOriginal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, url := range tt.setup {
 				_ = memStorage.AddURL(key, url)
-				_ = fileRepo.AddURL(key, url)
 			}
 			got, err := urlService.GetOriginal(tt.args.id)
 			if tt.wantErr != nil {
