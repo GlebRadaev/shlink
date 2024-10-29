@@ -200,7 +200,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 				body:        `{"url": "http://example.com"}`,
 			},
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "Invalid content type\n",
+			wantBody:   "invalid content type\n",
 		},
 		{
 			name: "invalid JSON format",
@@ -209,7 +209,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 				body:        `{"invalid_json"`,
 			},
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "Cannot decode request\n",
+			wantBody:   "cannot decode request\n",
 		},
 	}
 

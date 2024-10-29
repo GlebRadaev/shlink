@@ -19,10 +19,10 @@ func (dto *ShortenJSONRequestDTO) ValidateRequest(r io.Reader) error {
 		return errors.New("empty request body")
 	}
 	if err := json.NewDecoder(r).Decode(dto); err != nil {
-		return errors.New("Cannot decode request")
+		return errors.New("cannot decode request")
 	}
 	if dto.URL == "" {
-		return errors.New("URL is required")
+		return errors.New("url is required")
 	}
 	return nil
 }

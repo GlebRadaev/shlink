@@ -13,5 +13,5 @@ func ValidateContentType(w http.ResponseWriter, r *http.Request, allowedTypes ..
 			return nil
 		}
 	}
-	return errors.New("Invalid content type")
+	return errors.New("invalid content type")
 }
