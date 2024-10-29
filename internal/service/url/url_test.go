@@ -15,10 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var cfg *config.Config
+
 func setup() (interfaces.Repository, *url.URLService, *config.Config, error) {
-	cfg, err := config.ParseAndLoadConfig()
-	if err != nil {
-		return nil, nil, nil, err
+	if cfg == nil {
+		var err error
+		cfg, err = config.ParseAndLoadConfig()
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	log, _ := logger.NewLogger("info")
 	repositories := repository.NewRepositoryFactory(cfg)
