@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
+	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
+	"github.com/GlebRadaev/shlink/internal/utils"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -21,20 +24,13 @@ func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 
 // Shorten handles the request to shorten a URL
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
-	contentType := r.Header.Get("Content-Type")
-	parts := strings.Split(contentType, ";")
-	if len(parts) == 0 || !strings.Contains(parts[0], "text/plain") {
-		http.Error(w, "Invalid content type", http.StatusBadRequest)
-		return
-	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
-	url := string(body)
-	shortID, err := h.urlService.Shorten(url)
+	shortID, err := h.urlService.Shorten(string(body))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -59,4 +55,27 @@ func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", originalURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
+}
+
+func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
+	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var data dto.ShortenJSONRequestDTO
+	if err := data.ValidateRequest(r.Body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	shortID, err := h.urlService.Shorten(data.URL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID}); err != nil {
+		http.Error(w, "Error encoding response", http.StatusBadRequest)
+		return
+	}
 }

@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMemoryStorage_Save(t *testing.T) {
+func TestMemoryStorage_AddURL(t *testing.T) {
+	storage := NewMemoryStorage()
 	tests := []struct {
 		name    string
 		shortID string
@@ -30,10 +31,7 @@ func TestMemoryStorage_Save(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := NewMemoryStorage()
-
 			err := storage.AddURL(tt.shortID, tt.longURL)
-
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
@@ -46,7 +44,8 @@ func TestMemoryStorage_Save(t *testing.T) {
 	}
 }
 
-func TestMemoryStorage_Find(t *testing.T) {
+func TestMemoryStorage_Get(t *testing.T) {
+	memoryRepo := NewMemoryStorage()
 	tests := []struct {
 		name       string
 		shortID    string
@@ -69,13 +68,12 @@ func TestMemoryStorage_Find(t *testing.T) {
 			wantExists: false,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MemoryStorage{
-				data: tt.storedData,
+			for key, url := range tt.storedData {
+				_ = memoryRepo.AddURL(key, url)
 			}
-			url, exists := storage.Get(tt.shortID)
+			url, exists := memoryRepo.Get(tt.shortID)
 			assert.Equal(t, tt.wantExists, exists)
 			if tt.wantExists {
 				assert.Equal(t, tt.wantURL, url, "Expected the URL to match the stored value")
@@ -84,4 +82,18 @@ func TestMemoryStorage_Find(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMemoryStorage_GetAll(t *testing.T) {
+	memRepo := NewMemoryStorage()
+	_ = memRepo.AddURL("abc123", "http://example.com")
+	_ = memRepo.AddURL("xyz789", "http://another-example.com")
+	expected := map[string]string{
+		"abc123": "http://example.com",
+		"xyz789": "http://another-example.com",
+	}
+	t.Run("get all URLs", func(t *testing.T) {
+		allURLs := memRepo.GetAll()
+		assert.Equal(t, expected, allURLs, "GetAll should return the correct map of URLs")
+	})
 }

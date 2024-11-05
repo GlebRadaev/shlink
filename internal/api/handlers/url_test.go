@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,30 +9,30 @@ import (
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
+	"github.com/GlebRadaev/shlink/internal/logger"
+	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
 
-	repo "github.com/GlebRadaev/shlink/internal/repository"
-	repository "github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/internal/service/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
-var globalCfg *config.Config
-var globalErr error
+var cfg *config.Config
 
-func setup() (repo.Repository, *service.URLService, *config.Config, error) {
-	storage := repository.NewMemoryStorage()
-
-	if globalCfg == nil && globalErr == nil {
-		globalCfg, globalErr = config.ParseAndLoadConfig()
+func setup() (*url.URLService, *config.Config, error) {
+	if cfg == nil {
+		var err error
+		cfg, err = config.ParseAndLoadConfig()
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-	if globalErr != nil {
-		return nil, nil, nil, globalErr
-	}
-
-	urlService := service.NewURLService(storage, globalCfg)
-	return storage, urlService, globalCfg, nil
+	log, _ := logger.NewLogger("info")
+	repositories := repository.NewRepositoryFactory(cfg)
+	services := service.NewServiceFactory(cfg, log, repositories)
+	return services.URLService, cfg, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {
@@ -55,15 +56,6 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			wantBody:   "http://localhost/shortID",
 		},
 		{
-			name: "invalid Content-Type",
-			args: args{
-				contentType: "application/json",
-				body:        "http://example.com",
-			},
-			wantStatus: http.StatusBadRequest,
-			wantBody:   "Invalid content type\n",
-		},
-		{
 			name: "invalid URL format (URL too long)",
 			args: args{
 				contentType: "text/plain",
@@ -83,7 +75,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 		},
 	}
 
-	_, urlService, cfg, err := setup()
+	urlService, cfg, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -121,13 +113,13 @@ func TestURLHandlers_Redirect(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       args
-		setup      func(service *service.URLService) string
+		setup      func(service *url.URLService) string
 		wantStatus int
 	}{
 		{
 			name: "valid ID",
 			args: args{id: "validIDD"},
-			setup: func(service *service.URLService) string {
+			setup: func(service *url.URLService) string {
 				url, _ := service.Shorten("http://example.com")
 				splitURL := strings.Split(url, "/")
 				shortID := splitURL[len(splitURL)-1]
@@ -155,7 +147,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 		},
 	}
 
-	_, urlService, _, err := setup()
+	urlService, _, err := setup()
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -181,6 +173,85 @@ func TestURLHandlers_Redirect(t *testing.T) {
 				assert.NotEmpty(t, res.Header.Get("Location"), "Location header should not be empty")
 			} else {
 				assert.Equal(t, tt.wantStatus, res.StatusCode)
+			}
+		})
+	}
+}
+
+func TestURLHandlers_ShortenJSON(t *testing.T) {
+	type args struct {
+		contentType string
+		body        string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "valid JSON request",
+			args: args{
+				contentType: "application/json",
+				body:        `{"url": "http://example.com"}`,
+			},
+			wantStatus: http.StatusCreated,
+			wantBody:   `http://localhost:8080/`,
+		},
+		{
+			name: "invalid Content-Type",
+			args: args{
+				contentType: "text/plain",
+				body:        `{"url": "http://example.com"}`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid content type\n",
+		},
+		{
+			name: "invalid JSON format",
+			args: args{
+				contentType: "application/json",
+				body:        `{"invalid_json"`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "cannot decode request\n",
+		},
+	}
+
+	urlService, _, err := setup()
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/shorten", strings.NewReader(tt.args.body))
+			req.Header.Set("Content-Type", tt.args.contentType)
+			w := httptest.NewRecorder()
+
+			router := chi.NewRouter()
+			router.Post("/api/shorten", handler.ShortenJSON)
+			router.ServeHTTP(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			if tt.wantStatus == http.StatusCreated {
+				var resp map[string]string
+				err := json.Unmarshal(body, &resp)
+				assert.NoError(t, err, "Response should be valid JSON")
+
+				resultURL, ok := resp["result"]
+				assert.True(t, ok, `"result" key should exist in the response`)
+				assert.True(t, strings.HasPrefix(resultURL, tt.wantBody),
+					"Expected result URL to start with %s, but got %s", tt.wantBody, resultURL)
+			} else {
+				assert.Equal(t, tt.wantBody, string(body))
 			}
 		})
 	}
