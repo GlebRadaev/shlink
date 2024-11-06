@@ -41,7 +41,7 @@ func (app *Application) Init() error {
 		return fmt.Errorf("failed to create logger: %v", err)
 	}
 
-	repositories := repository.NewRepositoryFactory(app.Config)
+	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config)
 	app.Services = service.NewServiceFactory(app.Config, app.Logger, repositories)
 	router := app.setupRoutes()
 
@@ -83,6 +83,7 @@ func (app *Application) setupRoutes() *chi.Mux {
 	router := chi.NewRouter()
 	middleware.Middleware(router)
 	urlHandlers := handlers.NewURLHandlers(app.Services.URLService)
-	api.Routes(router, urlHandlers)
+	healthHandlers := handlers.NewHealthHandlers(app.Services.HealthService)
+	api.Routes(router, urlHandlers, healthHandlers)
 	return router
 }

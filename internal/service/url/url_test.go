@@ -1,6 +1,7 @@
 package url_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ import (
 
 var cfg *config.Config
 
-func setup() (interfaces.Repository, *url.URLService, *config.Config, error) {
+func setup(сtx context.Context) (interfaces.Repository, *url.URLService, *config.Config, error) {
 	if cfg == nil {
 		var err error
 		cfg, err = config.ParseAndLoadConfig()
@@ -26,12 +27,13 @@ func setup() (interfaces.Repository, *url.URLService, *config.Config, error) {
 		}
 	}
 	log, _ := logger.NewLogger("info")
-	repositories := repository.NewRepositoryFactory(cfg)
+	repositories := repository.NewRepositoryFactory(сtx, cfg)
 	services := service.NewServiceFactory(cfg, log, repositories)
 	return repositories.MemoryRepo, services.URLService, cfg, nil
 }
 
 func TestURLService_Shorten(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 		url string
 	}
@@ -62,7 +64,7 @@ func TestURLService_Shorten(t *testing.T) {
 		},
 	}
 
-	memoryRepo, urlService, cfg, err := setup()
+	memoryRepo, urlService, cfg, err := setup(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -85,6 +87,7 @@ func TestURLService_Shorten(t *testing.T) {
 }
 
 func TestURLService_GetOriginal(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 		id string
 	}
@@ -127,7 +130,7 @@ func TestURLService_GetOriginal(t *testing.T) {
 		},
 	}
 
-	memStorage, urlService, _, err := setup()
+	memStorage, urlService, _, err := setup(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}

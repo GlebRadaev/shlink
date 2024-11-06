@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 
 var cfg *config.Config
 
-func setup() (*url.URLService, *config.Config, error) {
+func setup(ctx context.Context) (*url.URLService, *config.Config, error) {
 	if cfg == nil {
 		var err error
 		cfg, err = config.ParseAndLoadConfig()
@@ -30,12 +31,13 @@ func setup() (*url.URLService, *config.Config, error) {
 		}
 	}
 	log, _ := logger.NewLogger("info")
-	repositories := repository.NewRepositoryFactory(cfg)
+	repositories := repository.NewRepositoryFactory(ctx, cfg)
 	services := service.NewServiceFactory(cfg, log, repositories)
 	return services.URLService, cfg, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 		contentType string
 		body        string
@@ -75,7 +77,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 		},
 	}
 
-	urlService, cfg, err := setup()
+	urlService, cfg, err := setup(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -107,6 +109,8 @@ func TestURLHandlers_Shorten(t *testing.T) {
 }
 
 func TestURLHandlers_Redirect(t *testing.T) {
+	ctx := context.Background()
+
 	type args struct {
 		id string
 	}
@@ -147,7 +151,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 		},
 	}
 
-	urlService, _, err := setup()
+	urlService, _, err := setup(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -179,6 +183,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 }
 
 func TestURLHandlers_ShortenJSON(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 		contentType string
 		body        string
@@ -218,7 +223,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 		},
 	}
 
-	urlService, _, err := setup()
+	urlService, _, err := setup(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}

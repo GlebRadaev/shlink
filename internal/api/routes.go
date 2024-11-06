@@ -5,8 +5,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func Routes(r *chi.Mux, urlHandlers *handlers.URLHandlers) {
+func Routes(r *chi.Mux, urlHandlers *handlers.URLHandlers, healthHandlers *handlers.HealthHandlers) {
 	r.Post("/", urlHandlers.Shorten)
 	r.Get("/{id}", urlHandlers.Redirect)
 	r.Post("/api/shorten", urlHandlers.ShortenJSON)
+
+	r.Get("/ping", healthHandlers.Ping)
 }
