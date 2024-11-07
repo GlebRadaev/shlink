@@ -42,7 +42,7 @@ func (app *Application) Init() error {
 	}
 
 	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config)
-	app.Services = service.NewServiceFactory(app.Config, app.Logger, repositories)
+	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, repositories)
 	router := app.setupRoutes()
 
 	app.Server = &http.Server{
@@ -71,7 +71,7 @@ func (app *Application) shutdown() error {
 	} else {
 		app.Logger.Info("Server shutdown successfully")
 	}
-	if err := app.Services.URLService.SaveData(); err != nil {
+	if err := app.Services.URLService.SaveData(shutdownCtx); err != nil {
 		app.Logger.Errorf("Failed to save data: %v", err)
 	} else {
 		app.Logger.Info("Data successfully saved before shutdown")

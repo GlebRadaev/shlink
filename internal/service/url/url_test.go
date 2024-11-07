@@ -28,7 +28,7 @@ func setup(сtx context.Context) (interfaces.Repository, *url.URLService, *confi
 	}
 	log, _ := logger.NewLogger("info")
 	repositories := repository.NewRepositoryFactory(сtx, cfg)
-	services := service.NewServiceFactory(cfg, log, repositories)
+	services := service.NewServiceFactory(сtx, cfg, log, repositories)
 	return repositories.MemoryRepo, services.URLService, cfg, nil
 }
 
@@ -71,14 +71,14 @@ func TestURLService_Shorten(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := urlService.Shorten(tt.args.url)
+			got, err := urlService.Shorten(ctx, tt.args.url)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, len(cfg.BaseURL)+1+8, len(got), "Expected ID length to be %d, but got %d", len(cfg.BaseURL)+1+8, len(got))
 
-				storedURL, found := memoryRepo.Get(strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
+				storedURL, found, _ := memoryRepo.Get(ctx, strings.Split(got, "/")[len(strings.Split(got, "/"))-1])
 				assert.True(t, found, "Expected the ID to be stored in memoryRepo, but it was not found")
 				assert.Equal(t, tt.args.url, storedURL, "Stored URL mismatch in memoryRepo: got %v, want %v", storedURL, tt.args.url)
 			}
@@ -138,9 +138,9 @@ func TestURLService_GetOriginal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, url := range tt.setup {
-				_ = memStorage.AddURL(key, url)
+				_ = memStorage.AddURL(ctx, key, url)
 			}
-			got, err := urlService.GetOriginal(tt.args.id)
+			got, err := urlService.GetOriginal(ctx, tt.args.id)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {

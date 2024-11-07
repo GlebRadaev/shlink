@@ -1,6 +1,7 @@
 package inmemory
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func TestMemoryStorage_AddURL(t *testing.T) {
+	ctx := context.Background()
 	storage := NewMemoryStorage()
 	tests := []struct {
 		name    string
@@ -31,12 +33,12 @@ func TestMemoryStorage_AddURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := storage.AddURL(tt.shortID, tt.longURL)
+			err := storage.AddURL(ctx, tt.shortID, tt.longURL)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
-				savedURL, exists := storage.Get(tt.shortID)
+				savedURL, exists, _ := storage.Get(ctx, tt.shortID)
 				assert.True(t, exists, "Expected the shortID to be saved, but it was not found")
 				assert.Equal(t, tt.longURL, savedURL, "Expected the longURL to match the saved value")
 			}
@@ -45,6 +47,7 @@ func TestMemoryStorage_AddURL(t *testing.T) {
 }
 
 func TestMemoryStorage_Get(t *testing.T) {
+	ctx := context.Background()
 	memoryRepo := NewMemoryStorage()
 	tests := []struct {
 		name       string
@@ -71,9 +74,9 @@ func TestMemoryStorage_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, url := range tt.storedData {
-				_ = memoryRepo.AddURL(key, url)
+				_ = memoryRepo.AddURL(ctx, key, url)
 			}
-			url, exists := memoryRepo.Get(tt.shortID)
+			url, exists, _ := memoryRepo.Get(ctx, tt.shortID)
 			assert.Equal(t, tt.wantExists, exists)
 			if tt.wantExists {
 				assert.Equal(t, tt.wantURL, url, "Expected the URL to match the stored value")
@@ -85,15 +88,16 @@ func TestMemoryStorage_Get(t *testing.T) {
 }
 
 func TestMemoryStorage_GetAll(t *testing.T) {
+	ctx := context.Background()
 	memRepo := NewMemoryStorage()
-	_ = memRepo.AddURL("abc123", "http://example.com")
-	_ = memRepo.AddURL("xyz789", "http://another-example.com")
+	_ = memRepo.AddURL(ctx, "abc123", "http://example.com")
+	_ = memRepo.AddURL(ctx, "xyz789", "http://another-example.com")
 	expected := map[string]string{
 		"abc123": "http://example.com",
 		"xyz789": "http://another-example.com",
 	}
 	t.Run("get all URLs", func(t *testing.T) {
-		allURLs := memRepo.GetAll()
+		allURLs, _ := memRepo.GetAll(ctx)
 		assert.Equal(t, expected, allURLs, "GetAll should return the correct map of URLs")
 	})
 }

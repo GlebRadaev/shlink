@@ -32,7 +32,7 @@ func setup(ctx context.Context) (*url.URLService, *config.Config, error) {
 	}
 	log, _ := logger.NewLogger("info")
 	repositories := repository.NewRepositoryFactory(ctx, cfg)
-	services := service.NewServiceFactory(cfg, log, repositories)
+	services := service.NewServiceFactory(ctx, cfg, log, repositories)
 	return services.URLService, cfg, nil
 }
 
@@ -124,7 +124,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 			name: "valid ID",
 			args: args{id: "validIDD"},
 			setup: func(service *url.URLService) string {
-				url, _ := service.Shorten("http://example.com")
+				url, _ := service.Shorten(ctx, "http://example.com")
 				splitURL := strings.Split(url, "/")
 				shortID := splitURL[len(splitURL)-1]
 				return shortID

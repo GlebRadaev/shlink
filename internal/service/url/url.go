@@ -1,6 +1,7 @@
 package url
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -34,20 +35,23 @@ func NewURLService(config *config.Config, log *logger.Logger, backup *backup.Bac
 	}
 }
 
-func (s *URLService) LoadData() error {
+func (s *URLService) LoadData(ctx context.Context) error {
 	data, err := s.backup.LoadData()
 	if err != nil {
 		return err
 	}
 	for shortURL, originalURL := range data {
-		_ = s.memoryRepo.AddURL(shortURL, originalURL)
+		_ = s.memoryRepo.AddURL(ctx, shortURL, originalURL)
 	}
 	s.log.Info("Data successfully loaded from backup.")
 	return nil
 }
 
-func (s *URLService) SaveData() error {
-	data := s.memoryRepo.GetAll()
+func (s *URLService) SaveData(ctx context.Context) error {
+	data, err := s.memoryRepo.GetAll(ctx)
+	if err != nil {
+		return err
+	}
 	if err := s.backup.SaveData(data); err != nil {
 		return err
 	}
@@ -56,7 +60,7 @@ func (s *URLService) SaveData() error {
 }
 
 // ShortenURL shortens a given URL and returns the short version
-func (s *URLService) Shorten(url string) (string, error) {
+func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 	s.log.Infof("Attempting to shorten URL: %s", url)
 	_, err := utils.ValidateURL(url)
 	if err != nil {
@@ -64,7 +68,7 @@ func (s *URLService) Shorten(url string) (string, error) {
 		return "", err
 	}
 	shortID := utils.Generate(MaxIDLength)
-	err = s.memoryRepo.AddURL(shortID, url)
+	err = s.memoryRepo.AddURL(ctx, shortID, url)
 	if err != nil {
 		s.log.Errorf("Failed to add URL to memory repository: %v", err)
 		return "", err
@@ -75,13 +79,17 @@ func (s *URLService) Shorten(url string) (string, error) {
 }
 
 // GetOriginal retrieves the original URL by the short ID
-func (s *URLService) GetOriginal(id string) (string, error) {
+func (s *URLService) GetOriginal(ctx context.Context, id string) (string, error) {
 	s.log.Infof("Retrieving original URL for ID: %s", id)
 	if !utils.IsValidID(id, MaxIDLength) {
 		s.log.Warnf("Invalid ID: %s", id)
 		return "", errors.New("invalid ID")
 	}
-	url, found := s.memoryRepo.Get(id)
+	url, found, err := s.memoryRepo.Get(ctx, id)
+	if err != nil {
+		s.log.Errorf("Error retrieving URL for ID %s: %v", id, err)
+		return "", err
+	}
 	if !found {
 		s.log.Warnf("URL not found for ID: %s", id)
 		return "", errors.New("URL not found")
