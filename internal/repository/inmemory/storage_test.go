@@ -2,15 +2,15 @@ package inmemory
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMemoryStorage_AddURL(t *testing.T) {
+func TestMemoryStorage_Insert(t *testing.T) {
 	ctx := context.Background()
-	storage := NewMemoryStorage()
+	memoryRepo := NewMemoryStorage()
 	tests := []struct {
 		name    string
 		shortID string
@@ -27,26 +27,29 @@ func TestMemoryStorage_AddURL(t *testing.T) {
 			name:    "empty shortID",
 			shortID: "",
 			longURL: "http://example.com",
-			wantErr: errors.New("shortID cannot be empty"),
+			wantErr: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := storage.AddURL(ctx, tt.shortID, tt.longURL)
+			url := &model.URL{
+				ShortID:     tt.shortID,
+				OriginalURL: tt.longURL,
+			}
+			savedURL, err := memoryRepo.Insert(ctx, url)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
+				foundURL, err := memoryRepo.FindByID(ctx, tt.shortID)
 				assert.NoError(t, err)
-				savedURL, exists, _ := storage.Get(ctx, tt.shortID)
-				assert.True(t, exists, "Expected the shortID to be saved, but it was not found")
-				assert.Equal(t, tt.longURL, savedURL, "Expected the longURL to match the saved value")
+				assert.Equal(t, savedURL.OriginalURL, foundURL.OriginalURL, "Expected the longURL to match the saved value")
 			}
 		})
 	}
 }
 
-func TestMemoryStorage_Get(t *testing.T) {
+func TestMemoryStorage_FindById(t *testing.T) {
 	ctx := context.Background()
 	memoryRepo := NewMemoryStorage()
 	tests := []struct {
@@ -73,31 +76,34 @@ func TestMemoryStorage_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for key, url := range tt.storedData {
-				_ = memoryRepo.AddURL(ctx, key, url)
+			for shortID, longURL := range tt.storedData {
+				_, _ = memoryRepo.Insert(ctx, &model.URL{ShortID: shortID, OriginalURL: longURL})
 			}
-			url, exists, _ := memoryRepo.Get(ctx, tt.shortID)
-			assert.Equal(t, tt.wantExists, exists)
+			foundURL, err := memoryRepo.FindByID(ctx, tt.shortID)
+			assert.NoError(t, err)
 			if tt.wantExists {
-				assert.Equal(t, tt.wantURL, url, "Expected the URL to match the stored value")
+				assert.Equal(t, tt.wantURL, foundURL.OriginalURL, "Expected the URL to match the stored value")
 			} else {
-				assert.Empty(t, url, "Expected no URL to be found")
+				assert.Nil(t, foundURL, "Expected no URL to be found")
 			}
 		})
 	}
 }
 
-func TestMemoryStorage_GetAll(t *testing.T) {
+func TestMemoryStorage_List(t *testing.T) {
 	ctx := context.Background()
-	memRepo := NewMemoryStorage()
-	_ = memRepo.AddURL(ctx, "abc123", "http://example.com")
-	_ = memRepo.AddURL(ctx, "xyz789", "http://another-example.com")
-	expected := map[string]string{
-		"abc123": "http://example.com",
-		"xyz789": "http://another-example.com",
-	}
+	memoryRepo := NewMemoryStorage()
+	_, _ = memoryRepo.Insert(ctx, &model.URL{ShortID: "abc123", OriginalURL: "http://example.com"})
+	_, _ = memoryRepo.Insert(ctx, &model.URL{ShortID: "xyz789", OriginalURL: "http://another-example.com"})
 	t.Run("get all URLs", func(t *testing.T) {
-		allURLs, _ := memRepo.GetAll(ctx)
-		assert.Equal(t, expected, allURLs, "GetAll should return the correct map of URLs")
+		allURLs, err := memoryRepo.List(ctx)
+		assert.NoError(t, err)
+
+		expected := []*model.URL{
+			{ShortID: "abc123", OriginalURL: "http://example.com"},
+			{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+		}
+
+		assert.ElementsMatch(t, expected, allURLs, "List should return the correct list of URLs")
 	})
 }

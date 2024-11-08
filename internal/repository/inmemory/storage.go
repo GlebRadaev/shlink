@@ -2,10 +2,10 @@ package inmemory
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/GlebRadaev/shlink/internal/interfaces"
+	"github.com/GlebRadaev/shlink/internal/model"
 )
 
 type MemoryStorage struct {
@@ -13,40 +13,47 @@ type MemoryStorage struct {
 	mu   sync.RWMutex
 }
 
-func NewMemoryStorage() interfaces.Repository {
+func NewMemoryStorage() interfaces.IURLRepository {
 	return &MemoryStorage{
 		data: make(map[string]string),
 	}
 }
 
-func (s *MemoryStorage) AddURL(ctx context.Context, key, value string) error {
-	if key == "" {
-		return errors.New("shortID cannot be empty")
-	}
+func (s *MemoryStorage) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
-	s.data[key] = value
-	return nil
+	s.data[url.ShortID] = url.OriginalURL
+	return url, nil
 }
 
-func (s *MemoryStorage) Get(ctx context.Context, key string) (string, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if err := ctx.Err(); err != nil {
-		return "", false, err
-	}
-	url, exists := s.data[key]
-	return url, exists, nil
-}
-
-func (s *MemoryStorage) GetAll(ctx context.Context) (map[string]string, error) {
+func (s *MemoryStorage) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return s.data, nil
+	url, exists := s.data[shortID]
+	if !exists {
+		return nil, nil
+	}
+	return &model.URL{OriginalURL: url}, nil
+}
+
+func (s *MemoryStorage) List(ctx context.Context) ([]*model.URL, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	urls := make([]*model.URL, 0, len(s.data))
+	for shortID, originalURL := range s.data {
+		urls = append(urls, &model.URL{
+			ShortID:     shortID,
+			OriginalURL: originalURL,
+		})
+	}
+	return urls, nil
 }

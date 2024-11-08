@@ -55,6 +55,9 @@ func (app *Application) Init() error {
 func (app *Application) Start() error {
 	go func() {
 		app.Logger.Infoln("Server started at", app.Config.ServerAddress)
+		app.Logger.Infoln("Base URL:", app.Config.BaseURL)
+		app.Logger.Infoln("File storage path:", app.Config.FileStoragePath)
+		app.Logger.Infoln("Database path:", app.Config.DatabaseDSN)
 		if err := app.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			app.Logger.Fatalf("Server error: %v", err)
 		}
@@ -71,10 +74,14 @@ func (app *Application) shutdown() error {
 	} else {
 		app.Logger.Info("Server shutdown successfully")
 	}
-	if err := app.Services.URLService.SaveData(shutdownCtx); err != nil {
-		app.Logger.Errorf("Failed to save data: %v", err)
-	} else {
-		app.Logger.Info("Data successfully saved before shutdown")
+	if app.Config.FileStoragePath != "" {
+		saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer saveCancel()
+		if err := app.Services.URLService.SaveData(saveCtx); err != nil {
+			app.Logger.Errorf("Failed to save data: %v", err)
+		} else {
+			app.Logger.Info("Data successfully saved before shutdown")
+		}
 	}
 	return nil
 }

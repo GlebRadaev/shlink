@@ -10,16 +10,18 @@ import (
 )
 
 type Repositories struct {
-	MemoryRepo   interfaces.Repository
-	DatabaseRepo *database.DatabaseRepository
+	URLRepo interfaces.IURLRepository
 }
 
 func NewRepositoryFactory(ctx context.Context, cfg *config.Config) *Repositories {
-	memoryRepo := inmemory.NewMemoryStorage()
-	databaseRepo := database.NewDatabaseRepository(ctx, cfg)
+	var urlRepo interfaces.IURLRepository
+	if cfg.DatabaseDSN != "" {
+		urlRepo, _ = database.NewURLRepository(ctx, cfg.DatabaseDSN)
+	} else {
+		urlRepo = inmemory.NewMemoryStorage()
+	}
 
 	return &Repositories{
-		MemoryRepo:   memoryRepo,
-		DatabaseRepo: databaseRepo,
+		URLRepo: urlRepo,
 	}
 }

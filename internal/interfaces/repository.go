@@ -1,9 +1,13 @@
 package interfaces
 
-import "context"
+import (
+	"context"
 
-type Repository interface {
-	AddURL(ctx context.Context, key string, value string) error
-	Get(ctx context.Context, key string) (string, bool, error)
-	GetAll(ctx context.Context) (map[string]string, error)
+	"github.com/GlebRadaev/shlink/internal/model"
+)
+
+type IURLRepository interface {
+	Insert(ctx context.Context, model *model.URL) (*model.URL, error)
+	FindByID(ctx context.Context, shortID string) (*model.URL, error)
+	List(ctx context.Context) ([]*model.URL, error)
 }

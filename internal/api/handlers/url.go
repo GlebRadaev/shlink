@@ -62,9 +62,17 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if r.Body == nil {
+		http.Error(w, "empty request body", http.StatusBadRequest)
+		return
+	}
 	var data dto.ShortenJSONRequestDTO
-	if err := data.ValidateRequest(r.Body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "cannot decode request", http.StatusBadRequest)
+		return
+	}
+	if data.URL == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
 	shortID, err := h.urlService.Shorten(r.Context(), data.URL)

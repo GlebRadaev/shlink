@@ -13,16 +13,13 @@ import (
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
-
 	"github.com/GlebRadaev/shlink/internal/service/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
-var cfg *config.Config
-
-func setup(ctx context.Context) (*url.URLService, *config.Config, error) {
+func setupURL(ctx context.Context) (*url.URLService, *config.Config, error) {
 	if cfg == nil {
 		var err error
 		cfg, err = config.ParseAndLoadConfig()
@@ -77,7 +74,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 		},
 	}
 
-	urlService, cfg, err := setup(ctx)
+	urlService, cfg, err := setupURL(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -151,7 +148,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 		},
 	}
 
-	urlService, _, err := setup(ctx)
+	urlService, _, err := setupURL(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -221,9 +218,27 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantBody:   "cannot decode request\n",
 		},
+		{
+			name: "empty request body",
+			args: args{
+				contentType: "application/json",
+				body:        "",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "cannot decode request\n",
+		},
+		{
+			name: "missing URL",
+			args: args{
+				contentType: "application/json",
+				body:        `{"url": ""}`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "url is required\n",
+		},
 	}
 
-	urlService, _, err := setup(ctx)
+	urlService, _, err := setupURL(ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
