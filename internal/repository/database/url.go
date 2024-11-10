@@ -75,3 +75,13 @@ func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	}
 	return urls, nil
 }
+
+func (r *URLRepository) Ping(ctx context.Context) error {
+	query := `SELECT 1`
+	var result int
+	err := r.db.QueryRow(ctx, query).Scan(&result)
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -27,16 +27,12 @@ func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		fmt.Println(err)
-
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 	shortID, err := h.urlService.Shorten(r.Context(), string(body))
 	if err != nil {
-		fmt.Println(err)
-
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
