@@ -35,8 +35,8 @@ func (s *HealthService) CheckDatabaseConnection(ctx context.Context) error {
 	} else {
 		// Если это in-memory хранилище вызываем FindByID
 		if _, err := s.urlRepo.FindByID(ctx, "checkQuery"); err != nil {
-			s.log.Error("Storage connection error:", err)
-			return errors.New("storage connection error")
+			s.log.Error("Database connection error:", err)
+			return errors.New("database connection error")
 		}
 	}
 	s.log.Info("Database connection is healthy.")
