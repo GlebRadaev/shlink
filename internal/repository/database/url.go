@@ -24,7 +24,7 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
         );
     `)
 	if err != nil {
-		log.Fatalf("Failed to create table 'urls': %v", err)
+		log.Printf("Failed to create table 'urls': %v", err)
 	} else {
 		log.Print("Table 'urls' created successfully.")
 	}
