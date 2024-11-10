@@ -7,7 +7,7 @@ import (
 )
 
 type IURLRepository interface {
-	Insert(ctx context.Context, model *model.URL) (*model.URL, error)
+	Insert(ctx context.Context, url *model.URL) (*model.URL, error)
 	FindByID(ctx context.Context, shortID string) (*model.URL, error)
 	List(ctx context.Context) ([]*model.URL, error)
 }

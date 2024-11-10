@@ -1,14 +1,14 @@
 package dto
 
-type ShortenJSONRequestDTO struct {
+type ShortenRequestDTO struct {
 	URL string `json:"url"`
 }
 
-type ShortenJSONResponseDTO struct {
+type ShortenResponseDTO struct {
 	Result string `json:"result"`
 }
 
-type URLDTO struct {
+type URLFileDataDTO struct {
 	UUID        string `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`

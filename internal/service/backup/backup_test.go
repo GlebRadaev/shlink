@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createTempFile(t *testing.T, content string) *os.File {
-	file, err := os.CreateTemp("", "backup_test.txt")
+func setupBackupServiceTest(t *testing.T, content string) (*backup.BackupService, string) {
+	tempDir := t.TempDir()
+	file, err := os.CreateTemp(tempDir, "backup_test.txt")
 	if err != nil {
 		t.Fatalf("Failed to create a temporary file: %v", err)
 	}
@@ -21,10 +22,9 @@ func createTempFile(t *testing.T, content string) *os.File {
 			t.Fatalf("Failed to write to the temporary file: %v", err)
 		}
 	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("Failed to close the temporary file: %v", err)
-	}
-	return file
+	file.Close()
+	service := backup.NewBackupService(file.Name())
+	return service, file.Name()
 }
 
 func TestBackupService_LoadData(t *testing.T) {
@@ -58,18 +58,15 @@ func TestBackupService_LoadData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *backup.BackupService
 			var filename string
 			if tt.fileContent != "" {
-				file := createTempFile(t, tt.fileContent)
-				defer os.Remove(file.Name())
-				filename = file.Name()
+				service, _ = setupBackupServiceTest(t, tt.fileContent)
 			} else {
 				filename = "non_existent_file.txt"
+				service = backup.NewBackupService(filename)
 			}
-
-			service := backup.NewBackupService(filename)
 			data, err := service.LoadData()
-
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
@@ -105,29 +102,24 @@ func TestBackupService_SaveData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *backup.BackupService
 			var filename string
 			if tt.expectedError == nil {
-				file := createTempFile(t, "")
-				defer os.Remove(file.Name())
-				filename = file.Name()
+				service, filename = setupBackupServiceTest(t, "")
 			} else {
 				filename = "/invalid_path/file.txt"
+				service = backup.NewBackupService(filename)
 			}
-
-			service := backup.NewBackupService(filename)
 			err := service.SaveData(tt.inputData)
-
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
-
 				content, _ := os.ReadFile(filename)
-				var urlDTO dto.URLDTO
+				var urlDTO dto.URLFileDataDTO
 				err = json.Unmarshal(content[:len(content)-1], &urlDTO)
 				assert.NoError(t, err)
-
 				assert.Equal(t, "short1", urlDTO.ShortURL)
 				assert.Equal(t, "https://example.com", urlDTO.OriginalURL)
 			}

@@ -7,20 +7,15 @@ import (
 
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/model"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 type URLRepository struct {
-	db *pgxpool.Pool
+	db interfaces.DBPool
 }
 
-func NewURLRepository(ctx context.Context, dsn string) (interfaces.IURLRepository, error) {
-	db, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = db.Exec(context.Background(), `
+func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
+	_, err := db.Exec(context.Background(), `
         CREATE TABLE IF NOT EXISTS urls (
             id SERIAL PRIMARY KEY,
             short_id VARCHAR(8) UNIQUE NOT NULL,
@@ -30,9 +25,10 @@ func NewURLRepository(ctx context.Context, dsn string) (interfaces.IURLRepositor
     `)
 	if err != nil {
 		log.Fatalf("Failed to create table 'urls': %v", err)
+	} else {
+		log.Print("Table 'urls' created successfully.")
 	}
-	log.Print("Table 'urls' created successfully.")
-	return &URLRepository{db: db}, nil
+	return &URLRepository{db: db}
 }
 
 func (r *URLRepository) Insert(ctx context.Context, model *model.URL) (*model.URL, error) {
@@ -50,8 +46,8 @@ func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.UR
 	url := &model.URL{}
 	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
 	if err != nil {
-		if err.Error() == "no rows in result set" {
-			return nil, nil
+		if err == pgx.ErrNoRows {
+			return nil, err
 		}
 		return nil, err
 	}
@@ -75,7 +71,7 @@ func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 		urls = append(urls, url)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("error occurred during rows iteration: %v", rows.Err())
+		return nil, fmt.Errorf("failed to find URLs: error occurred during rows iteration: %v", rows.Err())
 	}
 	return urls, nil
 }

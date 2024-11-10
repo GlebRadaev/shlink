@@ -22,12 +22,12 @@ const (
 type URLService struct {
 	log     *zap.SugaredLogger
 	config  *config.Config
-	backup  *backup.BackupService
+	backup  backup.IBackupService
 	urlRepo interfaces.IURLRepository
 }
 
 // NewURLService creates a new URLService
-func NewURLService(config *config.Config, log *logger.Logger, backup *backup.BackupService, urlRepo interfaces.IURLRepository) *URLService {
+func NewURLService(config *config.Config, log *logger.Logger, backup backup.IBackupService, urlRepo interfaces.IURLRepository) *URLService {
 	return &URLService{
 		log:     log.Named("URLService"),
 		config:  config,
@@ -48,7 +48,6 @@ func (s *URLService) LoadData(ctx context.Context) error {
 		}
 		_, _ = s.urlRepo.Insert(ctx, modelURL)
 	}
-	s.log.Info("Data successfully loaded from backup.")
 	return nil
 }
 
@@ -64,7 +63,6 @@ func (s *URLService) SaveData(ctx context.Context) error {
 	if err := s.backup.SaveData(data); err != nil {
 		return err
 	}
-	s.log.Info("Data successfully saved to backup.")
 	return nil
 }
 

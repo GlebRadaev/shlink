@@ -20,17 +20,17 @@ import (
 )
 
 func setupURL(ctx context.Context) (*url.URLService, *config.Config, error) {
-	if cfg == nil {
+	if cfgTest == nil {
 		var err error
-		cfg, err = config.ParseAndLoadConfig()
+		cfgTest, err = config.ParseAndLoadConfig()
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 	log, _ := logger.NewLogger("info")
-	repositories := repository.NewRepositoryFactory(ctx, cfg)
-	services := service.NewServiceFactory(ctx, cfg, log, repositories)
-	return services.URLService, cfg, nil
+	repositories := repository.NewRepositoryFactory(ctx, cfgTest, log)
+	services := service.NewServiceFactory(ctx, cfgTest, log, repositories)
+	return services.URLService, cfgTest, nil
 }
 
 func TestURLHandlers_Shorten(t *testing.T) {

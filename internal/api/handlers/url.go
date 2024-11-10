@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -26,12 +27,16 @@ func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		fmt.Println(err)
+
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 	shortID, err := h.urlService.Shorten(r.Context(), string(body))
 	if err != nil {
+		fmt.Println(err)
+
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -39,6 +44,8 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	_, err = w.Write([]byte(shortID))
 	if err != nil {
+		fmt.Println(err)
+
 		http.Error(w, "Failed to write response", http.StatusBadRequest)
 		return
 	}
@@ -62,11 +69,7 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if r.Body == nil {
-		http.Error(w, "empty request body", http.StatusBadRequest)
-		return
-	}
-	var data dto.ShortenJSONRequestDTO
+	var data dto.ShortenRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "cannot decode request", http.StatusBadRequest)
 		return
@@ -82,7 +85,7 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID}); err != nil {
+	if err := json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID}); err != nil {
 		http.Error(w, "Error encoding response", http.StatusBadRequest)
 		return
 	}

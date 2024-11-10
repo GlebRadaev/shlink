@@ -41,7 +41,7 @@ func (app *Application) Init() error {
 		return fmt.Errorf("failed to create logger: %v", err)
 	}
 
-	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config)
+	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config, app.Logger)
 	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, repositories)
 	router := app.setupRoutes()
 
@@ -54,12 +54,13 @@ func (app *Application) Init() error {
 
 func (app *Application) Start() error {
 	go func() {
-		app.Logger.Infoln("Server started at", app.Config.ServerAddress)
-		app.Logger.Infoln("Base URL:", app.Config.BaseURL)
-		app.Logger.Infoln("File storage path:", app.Config.FileStoragePath)
-		app.Logger.Infoln("Database path:", app.Config.DatabaseDSN)
+		logger := app.Logger.Named("Server Initialization")
+		logger.Infoln("Server started at", app.Config.ServerAddress)
+		logger.Infoln("Base URL:", app.Config.BaseURL)
+		logger.Infoln("File storage path:", app.Config.FileStoragePath)
+		logger.Infoln("Database path:", app.Config.DatabaseDSN)
 		if err := app.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			app.Logger.Fatalf("Server error: %v", err)
+			logger.Fatalf("Server error: %v", err)
 		}
 	}()
 	<-app.Ctx.Done()
@@ -67,22 +68,22 @@ func (app *Application) Start() error {
 }
 
 func (app *Application) shutdown() error {
+	logger := app.Logger.Named("Server Shutdown")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := app.Server.Shutdown(shutdownCtx); err != nil {
-		app.Logger.Errorf("Error during server shutdown: %v", err)
+		logger.Errorf("Error during server shutdown: %v", err)
 	} else {
-		app.Logger.Info("Server shutdown successfully")
+		logger.Info("Server shutdown successfully")
 	}
-	if app.Config.FileStoragePath != "" {
-		saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer saveCancel()
-		if err := app.Services.URLService.SaveData(saveCtx); err != nil {
-			app.Logger.Errorf("Failed to save data: %v", err)
-		} else {
-			app.Logger.Info("Data successfully saved before shutdown")
-		}
+	saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer saveCancel()
+	if err := app.Services.URLService.SaveData(saveCtx); err != nil {
+		logger.Errorf("Failed to save data: %v", err)
+	} else {
+		logger.Info("Data successfully saved before shutdown")
 	}
+
 	return nil
 }
 
