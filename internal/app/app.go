@@ -43,7 +43,7 @@ func (app *Application) Init() error {
 
 	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config, app.Logger)
 	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, repositories)
-	router := app.setupRoutes()
+	router := app.SetupRoutes()
 
 	app.Server = &http.Server{
 		Addr:    app.Config.ServerAddress,
@@ -64,10 +64,10 @@ func (app *Application) Start() error {
 		}
 	}()
 	<-app.Ctx.Done()
-	return app.shutdown()
+	return app.Shutdown()
 }
 
-func (app *Application) shutdown() error {
+func (app *Application) Shutdown() error {
 	logger := app.Logger.Named("Server Shutdown")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -87,7 +87,7 @@ func (app *Application) shutdown() error {
 	return nil
 }
 
-func (app *Application) setupRoutes() *chi.Mux {
+func (app *Application) SetupRoutes() *chi.Mux {
 	router := chi.NewRouter()
 	middleware.Middleware(router)
 	urlHandlers := handlers.NewURLHandlers(app.Services.URLService)
