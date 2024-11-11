@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/GlebRadaev/shlink/internal/config"
+	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service/backup"
 	"github.com/GlebRadaev/shlink/internal/service/url"
+	"github.com/GlebRadaev/shlink/internal/utils"
 	"go.uber.org/mock/gomock"
 
 	"github.com/stretchr/testify/assert"
@@ -107,6 +109,14 @@ func TestURLService_SaveData(t *testing.T) {
 			},
 			wantErr: errors.New("list error"),
 		},
+		{
+			name: "SaveData backup service error",
+			setupMock: func() {
+				mockURLRepo.EXPECT().List(gomock.Any()).Return([]*model.URL{{ShortID: "testID", OriginalURL: "http://example.com"}}, nil)
+				mockBackupService.EXPECT().SaveData(gomock.Any()).Return(errors.New("save data error"))
+			},
+			wantErr: errors.New("save data error"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -194,6 +204,86 @@ func TestURLService_Shorten(t *testing.T) {
 				shortID := strings.Split(got, "/")[len(strings.Split(got, "/"))-1]
 				storedURL, _ := mockURLRepo.FindByID(ctx, shortID)
 				assert.Equal(t, tt.args.url, storedURL.OriginalURL, "Stored URL mismatch in memoryRepo: got %v, want %v", storedURL.OriginalURL, tt.args.url)
+			}
+		})
+	}
+}
+
+func TestURLService_ShortenList(t *testing.T) {
+	ctx := context.Background()
+	mockURLRepo, urlService, _, cfg, err := setup(t)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		data        dto.BatchShortenRequestDTO
+		setupMock   func(mockURLRepo *repository.MockIURLRepository)
+		wantErr     error
+		expectedLen int
+	}{
+		{
+			name: "Batch shorten success",
+			data: dto.BatchShortenRequestDTO{
+				{CorrelationID: "1", OriginalURL: "http://example1.com"},
+				{CorrelationID: "2", OriginalURL: "https://example2.com"},
+			},
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().InsertList(ctx, gomock.Any()).Return([]*model.URL{
+					{ShortID: "short1", OriginalURL: "http://example1.com"},
+					{ShortID: "short2", OriginalURL: "https://example2.com"},
+				}, nil)
+			},
+			wantErr:     nil,
+			expectedLen: 2,
+		},
+		{
+			name: "Batch shorten with invalid URL",
+			data: dto.BatchShortenRequestDTO{
+				{CorrelationID: "1", OriginalURL: "invalid-url"},
+				{CorrelationID: "2", OriginalURL: "https://example2.com"},
+			},
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().InsertList(ctx, gomock.Any()).Return([]*model.URL{
+					{ShortID: "short2", OriginalURL: "https://example2.com"},
+				}, nil)
+			},
+			wantErr:     nil,
+			expectedLen: 1,
+		},
+		{
+			name: "Batch shorten repository error",
+			data: dto.BatchShortenRequestDTO{
+				{CorrelationID: "1", OriginalURL: "http://example1.com"},
+			},
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().InsertList(ctx, gomock.Any()).Return(nil, errors.New("repository error"))
+			},
+			wantErr:     errors.New("repository error"),
+			expectedLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock(mockURLRepo)
+			got, err := urlService.ShortenList(ctx, tt.data)
+
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				assert.Nil(t, got, "Expected no result when there's an error")
+			} else {
+				assert.NoError(t, err, "Unexpected error in ShortenList")
+
+				assert.Equal(t, tt.expectedLen, len(got), "Unexpected number of successful URLs")
+
+				for i, res := range got {
+					assert.True(t, strings.HasPrefix(res.ShortURL, cfg.BaseURL), "ShortURL should start with base URL")
+					if i < len(tt.data) && utils.IsValidID(res.ShortURL, 8) {
+						assert.Equal(t, tt.data[i].CorrelationID, res.CorrelationID, "CorrelationID should match")
+					}
+				}
 			}
 		})
 	}

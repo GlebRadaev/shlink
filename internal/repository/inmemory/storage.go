@@ -29,6 +29,18 @@ func (s *MemoryStorage) Insert(ctx context.Context, url *model.URL) (*model.URL,
 	return url, nil
 }
 
+func (s *MemoryStorage) InsertList(ctx context.Context, urls []*model.URL) ([]*model.URL, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	for _, url := range urls {
+		s.data[url.ShortID] = url.OriginalURL
+	}
+	return urls, nil
+}
+
 func (s *MemoryStorage) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -56,4 +68,13 @@ func (s *MemoryStorage) List(ctx context.Context) ([]*model.URL, error) {
 		})
 	}
 	return urls, nil
+}
+
+func (s *MemoryStorage) Ping(ctx context.Context) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }

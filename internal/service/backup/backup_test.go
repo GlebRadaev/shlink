@@ -31,6 +31,7 @@ func TestBackupService_LoadData(t *testing.T) {
 	tests := []struct {
 		name          string
 		fileContent   string
+		setupFunc     func(filename string) // Функция для настройки условий теста
 		expectedData  map[string]string
 		expectedError error
 	}{
@@ -44,7 +45,7 @@ func TestBackupService_LoadData(t *testing.T) {
 		},
 		{
 			name:          "File not found",
-			fileContent:   "",
+			setupFunc:     func(filename string) {}, // Не создаем файл для теста отсутствующего файла
 			expectedData:  map[string]string{},
 			expectedError: nil,
 		},
@@ -54,22 +55,36 @@ func TestBackupService_LoadData(t *testing.T) {
 			expectedData:  nil,
 			expectedError: errors.New("invalid character 'i' looking for beginning of value"),
 		},
+		{
+			name: "File read error",
+			setupFunc: func(filename string) {
+				_ = os.WriteFile(filename, []byte("content"), 0333)
+			},
+			expectedData:  nil,
+			expectedError: errors.New("permission denied"),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var service *backup.BackupService
-			var filename string
-			if tt.fileContent != "" {
-				service, _ = setupBackupServiceTest(t, tt.fileContent)
-			} else {
-				filename = "non_existent_file.txt"
+
+			// Настройка тестовой среды
+			if tt.setupFunc != nil {
+				tempDir := t.TempDir()
+				filename := tempDir + "/backup_test.txt"
 				service = backup.NewBackupService(filename)
+				tt.setupFunc(filename)
+			} else {
+				// В остальных случаях создаем временный файл
+				service, _ = setupBackupServiceTest(t, tt.fileContent)
 			}
+
 			data, err := service.LoadData()
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
+				assert.Nil(t, data)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedData, data)

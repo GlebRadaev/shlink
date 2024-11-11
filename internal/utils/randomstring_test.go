@@ -55,8 +55,13 @@ func TestIsValidID(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "Invalid ID: contains special characters",
-			args: args{id: "invalid@ID!", length: 10},
+			name: "Invalid ID: contains non-charset characters",
+			args: args{id: "abc123 xyz", length: 10}, // Здесь пробел — символ, отсутствующий в charset
+			want: false,
+		},
+		{
+			name: "Invalid ID: contains characters from another locale",
+			args: args{id: "abc123абвгд", length: 10}, // Здесь кириллица, которой нет в charset
 			want: false,
 		},
 	}

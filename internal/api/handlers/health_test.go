@@ -8,7 +8,6 @@ import (
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
-	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service/health"
 	"go.uber.org/mock/gomock"
@@ -46,14 +45,14 @@ func TestHealthHandlers_Ping(t *testing.T) {
 		{
 			name: "database connection is healthy",
 			setup: func(repo *repository.MockIURLRepository) {
-				repo.EXPECT().FindByID(gomock.Any(), "checkQuery").Return(&model.URL{}, nil)
+				repo.EXPECT().Ping(gomock.Any()).Return(nil)
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
 			name: "database connection error",
 			setup: func(repo *repository.MockIURLRepository) {
-				repo.EXPECT().FindByID(gomock.Any(), "checkQuery").Return(nil, errors.New("database connection error"))
+				repo.EXPECT().Ping(gomock.Any()).Return(errors.New("database connection error"))
 			},
 			wantStatus: http.StatusInternalServerError,
 		},

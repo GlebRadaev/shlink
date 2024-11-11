@@ -31,14 +31,40 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 	return &URLRepository{db: db}
 }
 
-func (r *URLRepository) Insert(ctx context.Context, model *model.URL) (*model.URL, error) {
+func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	query := `INSERT INTO urls (short_id, original_url) VALUES ($1, $2) RETURNING id, short_id, original_url, created_at`
-	err := r.db.QueryRow(ctx, query, model.ShortID, model.OriginalURL).
-		Scan(&model.ID, &model.ShortID, &model.OriginalURL, &model.CreatedAt)
+	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL).
+		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert URL: %v", err)
 	}
-	return model, nil
+	return url, nil
+}
+
+func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*model.URL, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %v", err)
+	}
+
+	var result []*model.URL
+	for _, url := range urls {
+		insertedURL, err := r.Insert(ctx, url)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, insertedURL)
+	}
+	_ = tx.Commit(ctx)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to commit transaction: %v", err)
+	// }
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
+	return result, nil
 }
 
 func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.URL, error) {

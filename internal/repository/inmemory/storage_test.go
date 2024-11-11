@@ -31,12 +31,23 @@ func TestMemoryStorage_Insert(t *testing.T) {
 			longURL: "http://example.com",
 			wantErr: nil,
 		},
+		{
+			name:    "context cancelled",
+			shortID: "abc123",
+			longURL: "http://example.com",
+			wantErr: context.Canceled,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			url := &model.URL{
 				ShortID:     tt.shortID,
 				OriginalURL: tt.longURL,
+			}
+			if tt.wantErr == context.Canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
 			}
 			savedURL, err := storage.Insert(ctx, url)
 			assert.Equal(t, tt.wantErr, err)
@@ -49,16 +60,64 @@ func TestMemoryStorage_Insert(t *testing.T) {
 	}
 }
 
-func TestMemoryStorage_FindById(t *testing.T) {
+func TestMemoryStorage_InsertList(t *testing.T) {
 	storage := inmemory.NewMemoryStorage()
 	ctx := context.Background()
 
+	tests := []struct {
+		name    string
+		urls    []*model.URL
+		wantErr error
+	}{
+		{
+			name: "valid list of URLs",
+			urls: []*model.URL{
+				{ShortID: "abc123", OriginalURL: "http://example.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "empty list of URLs",
+			urls:    []*model.URL{},
+			wantErr: nil,
+		},
+		{
+			name:    "context cancelled",
+			urls:    []*model.URL{{ShortID: "abc123", OriginalURL: "http://example.com"}},
+			wantErr: context.Canceled,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == context.Canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			savedURLs, err := storage.InsertList(ctx, tt.urls)
+			assert.Equal(t, tt.wantErr, err)
+			if tt.wantErr == nil {
+				for _, savedURL := range savedURLs {
+					foundURL, err := storage.FindByID(ctx, savedURL.ShortID)
+					assert.NoError(t, err)
+					assert.Equal(t, savedURL.OriginalURL, foundURL.OriginalURL, "Expected the longURL to match the saved value")
+				}
+			}
+		})
+	}
+}
+
+func TestMemoryStorage_FindById(t *testing.T) {
+	storage := inmemory.NewMemoryStorage()
+	ctx := context.Background()
 	tests := []struct {
 		name       string
 		shortID    string
 		storedData map[string]string
 		wantURL    string
 		wantExists bool
+		wantErr    error
 	}{
 		{
 			name:       "shortID exists",
@@ -66,6 +125,7 @@ func TestMemoryStorage_FindById(t *testing.T) {
 			storedData: map[string]string{"abc123": "http://example.com"},
 			wantURL:    "http://example.com",
 			wantExists: true,
+			wantErr:    nil,
 		},
 		{
 			name:       "shortID does not exist",
@@ -73,24 +133,40 @@ func TestMemoryStorage_FindById(t *testing.T) {
 			storedData: map[string]string{"abc123": "http://example.com"},
 			wantURL:    "",
 			wantExists: false,
+			wantErr:    nil,
+		},
+		{
+			name:       "context cancelled",
+			shortID:    "abc123",
+			storedData: map[string]string{"abc123": "http://example.com"},
+			wantURL:    "",
+			wantExists: false,
+			wantErr:    context.Canceled,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErr == context.Canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
 			for shortID, originalURL := range tt.storedData {
 				_, err := storage.Insert(ctx, &model.URL{ShortID: shortID, OriginalURL: originalURL})
-				if err != nil {
+				if err != nil && err != tt.wantErr {
 					t.Errorf("Insert() returned an error: %v", err)
-					continue
 				}
 			}
-
 			foundURL, err := storage.FindByID(ctx, tt.shortID)
-			assert.NoError(t, err)
-			if tt.wantExists {
-				assert.Equal(t, tt.wantURL, foundURL.OriginalURL, "Expected the URL to match the stored value")
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.Nil(t, foundURL, "Expected no URL to be found")
+				assert.NoError(t, err)
+				if tt.wantExists {
+					assert.Equal(t, tt.wantURL, foundURL.OriginalURL, "Expected the URL to match the stored value")
+				} else {
+					assert.Nil(t, foundURL, "Expected no URL to be found")
+				}
 			}
 		})
 	}
@@ -100,6 +176,32 @@ func TestMemoryStorage_List(t *testing.T) {
 	storage := inmemory.NewMemoryStorage()
 	ctx := context.Background()
 
+	tests := []struct {
+		name          string
+		shortID       string
+		originalURL   string
+		expectedURLs  []*model.URL
+		expectedError error
+	}{
+		{
+			name:        "get all URLs",
+			shortID:     "abc123",
+			originalURL: "http://example.com",
+			expectedURLs: []*model.URL{
+				{ShortID: "abc123", OriginalURL: "http://example.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+			},
+			expectedError: nil,
+		},
+		{
+			name:          "context cancelled",
+			shortID:       "abc123",
+			originalURL:   "http://example.com",
+			expectedURLs:  nil,
+			expectedError: context.Canceled,
+		},
+	}
+
 	if _, err := storage.Insert(ctx, &model.URL{ShortID: "abc123", OriginalURL: "http://example.com"}); err != nil {
 		t.Errorf("Insert() returned an error: %v", err)
 	}
@@ -107,13 +209,53 @@ func TestMemoryStorage_List(t *testing.T) {
 		t.Errorf("Insert() returned an error: %v", err)
 	}
 
-	t.Run("get all URLs", func(t *testing.T) {
-		expectedURLs := []*model.URL{
-			{ShortID: "abc123", OriginalURL: "http://example.com"},
-			{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
-		}
-		allURLs, err := storage.List(ctx)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, expectedURLs, allURLs, "List should return the correct list of URLs")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "context cancelled" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			allURLs, err := storage.List(ctx)
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.ElementsMatch(t, tt.expectedURLs, allURLs, "List should return the correct list of URLs")
+		})
+	}
+}
+
+func TestMemoryStorage_Ping(t *testing.T) {
+	storage := inmemory.NewMemoryStorage()
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		ctx           context.Context
+		expectedError error
+	}{
+		{
+			name:          "ping successful",
+			ctx:           ctx,
+			expectedError: nil,
+		},
+		{
+			name:          "context cancelled",
+			ctx:           func() context.Context { ctx, cancel := context.WithCancel(ctx); cancel(); return ctx }(), // создаем контекст с отменой
+			expectedError: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := storage.Ping(tt.ctx)
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError, "Expected error to match")
+			} else {
+				assert.NoError(t, err, "Expected no error")
+			}
+		})
+	}
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
-	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service/health"
 	"github.com/stretchr/testify/assert"
@@ -48,14 +47,14 @@ func TestHealthService_CheckDatabaseConnection(t *testing.T) {
 		{
 			name: "Database connection is healthy",
 			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-				mockURLRepo.EXPECT().FindByID(gomock.Any(), "checkQuery").Return(&model.URL{ShortID: "checkQuery", OriginalURL: "http://example.com"}, nil)
+				mockURLRepo.EXPECT().Ping(gomock.Any()).Return(nil)
 			},
 			wantErr: nil,
 		},
 		{
 			name: "Database connection error",
 			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-				mockURLRepo.EXPECT().FindByID(gomock.Any(), "checkQuery").Return(nil, errors.New("database connection error"))
+				mockURLRepo.EXPECT().Ping(gomock.Any()).Return(errors.New("database connection error"))
 			},
 			wantErr: errors.New("database connection error"),
 		},

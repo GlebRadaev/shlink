@@ -29,27 +29,6 @@ func setupMockRepository(t *testing.T) (interfaces.IURLRepository, pgxmock.PgxPo
 	return repo, mockDB
 }
 
-// func TestURLRepository_Insert(t *testing.T) {
-// 	ctx := context.Background()
-// 	repo, mockDB := setupMockRepository(t)
-// 	defer mockDB.Close()
-
-// 	url := &model.URL{
-// 		ShortID:     "abc123",
-// 		OriginalURL: "http://example.com",
-// 	}
-
-// 	mockDB.ExpectQuery(`INSERT INTO urls`).
-// 		WithArgs(url.ShortID, url.OriginalURL).
-// 		WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-// 			AddRow(1, url.ShortID, url.OriginalURL, time.Now()))
-
-// 	insertedURL, err := repo.Insert(ctx, url)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, url.ShortID, insertedURL.ShortID)
-// 	assert.Equal(t, url.OriginalURL, insertedURL.OriginalURL)
-// }
-
 func TestURLRepository_Insert(t *testing.T) {
 	ctx := context.Background()
 	repo, mockDB := setupMockRepository(t)
@@ -104,6 +83,90 @@ func TestURLRepository_Insert(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.shortID, insertedURL.ShortID)
 				assert.Equal(t, tt.originalURL, insertedURL.OriginalURL)
+			}
+		})
+	}
+}
+
+func TestURLRepository_InsertList(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		urls          []*model.URL
+		mockSetup     func()
+		expectedError error
+	}{
+		{
+			name: "Successful InsertList",
+			urls: []*model.URL{
+				{ShortID: "abc123", OriginalURL: "http://example.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+			},
+			mockSetup: func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectQuery(`INSERT INTO urls`).
+					WithArgs("abc123", "http://example.com").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
+						AddRow(1, "abc123", "http://example.com", time.Now()))
+				mockDB.ExpectQuery(`INSERT INTO urls`).
+					WithArgs("xyz789", "http://another-example.com").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
+						AddRow(2, "xyz789", "http://another-example.com", time.Now()))
+				mockDB.ExpectCommit()
+			},
+			expectedError: nil,
+		},
+		{
+			name: "InsertList Transaction Error",
+			urls: []*model.URL{
+				{ShortID: "abc123", OriginalURL: "http://example.com"},
+			},
+			mockSetup: func() {
+				mockDB.ExpectBegin().
+					WillReturnError(fmt.Errorf("failed to begin transaction"))
+			},
+			expectedError: fmt.Errorf("failed to begin transaction: failed to begin transaction"),
+		},
+		{
+			name: "InsertList Insert Error",
+			urls: []*model.URL{
+				{ShortID: "abc123", OriginalURL: "http://example.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+			},
+			mockSetup: func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectQuery(`INSERT INTO urls`).
+					WithArgs("abc123", "http://example.com").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
+						AddRow(1, "abc123", "http://example.com", time.Now()))
+				mockDB.ExpectQuery(`INSERT INTO urls`).
+					WithArgs("xyz789", "http://another-example.com").
+					WillReturnError(fmt.Errorf("insert error"))
+				mockDB.ExpectRollback()
+			},
+			expectedError: fmt.Errorf("failed to insert URL: insert error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+
+			urls, err := repo.InsertList(ctx, tt.urls)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, urls, len(tt.urls))
+				for i, url := range urls {
+					assert.Equal(t, tt.urls[i].ShortID, url.ShortID)
+					assert.Equal(t, tt.urls[i].OriginalURL, url.OriginalURL)
+				}
 			}
 		})
 	}
@@ -241,6 +304,52 @@ func TestURLRepository_List(t *testing.T) {
 					assert.Equal(t, tt.expectedURLs[i].ShortID, url.ShortID)
 					assert.Equal(t, tt.expectedURLs[i].OriginalURL, url.OriginalURL)
 				}
+			}
+		})
+	}
+}
+
+func TestURLRepository_Ping(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		mockSetup     func()
+		expectedError error
+	}{
+		{
+			name: "Successful Ping",
+			mockSetup: func() {
+				// Mock a successful database query for ping
+				mockDB.ExpectQuery(`SELECT 1`).
+					WillReturnRows(pgxmock.NewRows([]string{"result"}).AddRow(1))
+			},
+			expectedError: nil,
+		},
+		{
+			name: "Ping Error",
+			mockSetup: func() {
+				// Simulate an error (e.g., database connection issue)
+				mockDB.ExpectQuery(`SELECT 1`).
+					WillReturnError(fmt.Errorf("db connection error"))
+			},
+			expectedError: fmt.Errorf("db connection error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+
+			err := repo.Ping(ctx)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

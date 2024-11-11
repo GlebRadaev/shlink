@@ -71,6 +71,21 @@ func (mr *MockIURLRepositoryMockRecorder) Insert(ctx, url any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockIURLRepository)(nil).Insert), ctx, url)
 }
 
+// InsertList mocks base method.
+func (m *MockIURLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*model.URL, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertList", ctx, urls)
+	ret0, _ := ret[0].([]*model.URL)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertList indicates an expected call of InsertList.
+func (mr *MockIURLRepositoryMockRecorder) InsertList(ctx, urls any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertList", reflect.TypeOf((*MockIURLRepository)(nil).InsertList), ctx, urls)
+}
+
 // List mocks base method.
 func (m *MockIURLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	m.ctrl.T.Helper()
@@ -84,4 +99,18 @@ func (m *MockIURLRepository) List(ctx context.Context) ([]*model.URL, error) {
 func (mr *MockIURLRepositoryMockRecorder) List(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockIURLRepository)(nil).List), ctx)
+}
+
+// Ping mocks base method.
+func (m *MockIURLRepository) Ping(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Ping", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Ping indicates an expected call of Ping.
+func (mr *MockIURLRepositoryMockRecorder) Ping(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockIURLRepository)(nil).Ping), ctx)
 }

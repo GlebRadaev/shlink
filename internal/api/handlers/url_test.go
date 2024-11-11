@@ -3,9 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -18,6 +20,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
+
+type mockErrorReader struct{}
+
+func (m *mockErrorReader) Read(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("mock read error")
+}
 
 func setupURL(ctx context.Context) (*url.URLService, *config.Config, error) {
 	if cfgTest == nil {
@@ -44,6 +52,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 		args       args
 		wantStatus int
 		wantBody   string
+		mockReader io.Reader
 	}{
 		{
 			name: "valid URL",
@@ -53,6 +62,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   "http://localhost/shortID",
+			mockReader: strings.NewReader("http://example.com"),
 		},
 		{
 			name: "invalid URL format (URL too long)",
@@ -62,6 +72,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			},
 			wantStatus: http.StatusBadRequest,
 			wantBody:   "invalid URL format\n",
+			mockReader: strings.NewReader(strings.Repeat("a", 2048+1)),
 		},
 		{
 			name: "invalid URL format",
@@ -71,6 +82,17 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			},
 			wantStatus: http.StatusBadRequest,
 			wantBody:   "invalid URL format\n",
+			mockReader: strings.NewReader("invalid-url"),
+		},
+		{
+			name: "failed to read request body",
+			args: args{
+				contentType: "text/plain",
+				body:        "http://example.com",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "Failed to read request body\n",
+			mockReader: &mockErrorReader{},
 		},
 	}
 
@@ -82,7 +104,7 @@ func TestURLHandlers_Shorten(t *testing.T) {
 	handler := NewURLHandlers(urlService)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("POST", "/", strings.NewReader(tt.args.body))
+			req := httptest.NewRequest("POST", "/", tt.mockReader)
 			req.Header.Set("Content-Type", tt.args.contentType)
 			w := httptest.NewRecorder()
 			router := chi.NewRouter()
@@ -273,6 +295,94 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.wantBody, string(body))
 			}
+		})
+	}
+}
+
+func TestURLHandlers_ShortenJSONBatch(t *testing.T) {
+	ctx := context.Background()
+	type args struct {
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name       string
+		args       args
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "valid JSON batch request",
+			args: args{
+				contentType: "application/json",
+				body:        `[{"correlation_id": "1", "original_url": "http://example.com"}, {"correlation_id": "2", "original_url": "http://another-example.com"}]`,
+			},
+			wantStatus: http.StatusCreated,
+			wantBody:   `[{"correlation_id":"1","shortened_url":"http://localhost/shortID1"},{"correlation_id":"2","shortened_url":"http://localhost/shortID2"}]`,
+		},
+		{
+			name: "invalid JSON format",
+			args: args{
+				contentType: "application/json",
+				body:        `[{"correlation_id": "1", "original_url": "http://example.com"}, {"correlation_id": "2", "original_url": "http://another-example.com"}`, // неполный JSON
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "cannot decode request\n",
+		},
+		{
+			name: "invalid Content-Type",
+			args: args{
+				contentType: "text/plain",
+				body:        `[{"correlation_id": "1", "original_url": "http://example.com"}]`,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid content type\n",
+		},
+		{
+			name: "empty request body",
+			args: args{
+				contentType: "application/json",
+				body:        "",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "cannot decode request\n",
+		},
+		{
+			name: "missing URL in batch",
+			args: args{
+				contentType: "application/json",
+				body:        `[{"correlation_id": "1", "original_url": ""}]`,
+			},
+			wantStatus: http.StatusCreated,
+			wantBody:   "",
+		},
+	}
+
+	urlService, _, err := setupURL(ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/shorten/batch", strings.NewReader(tt.args.body))
+			req.Header.Set("Content-Type", tt.args.contentType)
+			w := httptest.NewRecorder()
+
+			handler.ShortenJSONBatch(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			matched, err := regexp.MatchString(tt.wantBody, string(body))
+			assert.NoError(t, err)
+			assert.True(t, matched, fmt.Sprintf("Expected body to match regex: %s, but got: %s", tt.wantBody, string(body)))
 		})
 	}
 }

@@ -6,11 +6,13 @@ import (
 	"fmt"
 
 	"github.com/GlebRadaev/shlink/internal/config"
+	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/GlebRadaev/shlink/internal/service/backup"
 	"github.com/GlebRadaev/shlink/internal/utils"
+
 	"go.uber.org/zap"
 )
 
@@ -75,11 +77,11 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	// Создаем объект URL модели
-	modelURL := &model.URL{
+	modelURL := model.URL{
 		ShortID:     utils.Generate(MaxIDLength),
 		OriginalURL: url,
 	}
-	newURL, err := s.urlRepo.Insert(ctx, modelURL)
+	newURL, err := s.urlRepo.Insert(ctx, &modelURL)
 	if err != nil {
 		s.log.Errorf("Failed to add URL to memory repository: %v", err)
 		return "", err
@@ -87,6 +89,36 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 	s.log.Infof("Successfully shortened URL: %s -> %s", newURL.OriginalURL, newURL.ShortID)
 	shortID := fmt.Sprintf("%s/%s", s.config.BaseURL, newURL.ShortID)
 	return shortID, nil
+}
+
+// ShortenURL shortens a given URL and returns the short version
+func (s *URLService) ShortenList(ctx context.Context, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
+	resultData := make([]dto.BatchShortenResponse, 0, len(data))
+	insertData := make([]*model.URL, 0, len(data))
+	for _, dataInfo := range data {
+		_, err := utils.ValidateURL(dataInfo.OriginalURL)
+		if err != nil {
+			s.log.Warnf("Invalid URL: %s, error: %v", dataInfo.OriginalURL, err)
+			continue
+		}
+		modelURL := model.URL{
+			ShortID:     utils.Generate(MaxIDLength),
+			OriginalURL: dataInfo.OriginalURL,
+		}
+		insertData = append(insertData, &modelURL)
+		resultData = append(resultData, dto.BatchShortenResponse{
+			CorrelationID: dataInfo.CorrelationID,
+			ShortURL:      fmt.Sprintf("%s/%s", s.config.BaseURL, modelURL.ShortID),
+		})
+	}
+	if len(insertData) > 0 {
+		_, err := s.urlRepo.InsertList(ctx, insertData)
+		if err != nil {
+			s.log.Errorf("Failed to add URL to memory repository: %v", err)
+			return nil, err
+		}
+	}
+	return resultData, nil
 }
 
 // GetOriginal retrieves the original URL by the short ID

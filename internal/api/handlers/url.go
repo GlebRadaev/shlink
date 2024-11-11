@@ -86,3 +86,26 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
+	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var data dto.BatchShortenRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "cannot decode request", http.StatusBadRequest)
+		return
+	}
+	shortenResults, err := h.urlService.ShortenList(r.Context(), data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(shortenResults); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
+}
