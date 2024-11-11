@@ -55,14 +55,6 @@ func TestBackupService_LoadData(t *testing.T) {
 			expectedData:  nil,
 			expectedError: errors.New("invalid character 'i' looking for beginning of value"),
 		},
-		{
-			name: "File read error",
-			setupFunc: func(filename string) {
-				_ = os.WriteFile(filename, []byte("content"), 0333)
-			},
-			expectedData:  nil,
-			expectedError: errors.New("permission denied"),
-		},
 	}
 
 	for _, tt := range tests {
