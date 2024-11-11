@@ -67,6 +67,7 @@ func TestApplicationStart(t *testing.T) {
 
 	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
 	assert.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	err = application.Shutdown()
