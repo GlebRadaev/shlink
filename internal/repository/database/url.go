@@ -16,10 +16,11 @@ type URLRepository struct {
 
 func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 	_, err := db.Exec(context.Background(), `
+		DROP TABLE IF EXISTS urls;
         CREATE TABLE IF NOT EXISTS urls (
             id SERIAL PRIMARY KEY,
             short_id VARCHAR(8) UNIQUE NOT NULL,
-            original_url VARCHAR(2048) NOT NULL,
+    		original_url VARCHAR(2048) UNIQUE NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     `)
@@ -32,7 +33,12 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 }
 
 func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
-	query := `INSERT INTO urls (short_id, original_url) VALUES ($1, $2) RETURNING id, short_id, original_url, created_at`
+	query := `
+		INSERT INTO urls (short_id, original_url) 
+		VALUES ($1, $2) 
+		ON CONFLICT (original_url) DO UPDATE 
+		SET short_id = urls.short_id 
+		RETURNING id, short_id, original_url, created_at`
 	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL).
 		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
 	if err != nil {
@@ -56,9 +62,6 @@ func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*m
 		result = append(result, insertedURL)
 	}
 	_ = tx.Commit(ctx)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to commit transaction: %v", err)
-	// }
 	defer func() {
 		if err := tx.Rollback(ctx); err != nil {
 			log.Printf("Failed to rollback transaction: %v", err)
@@ -68,7 +71,9 @@ func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*m
 }
 
 func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
-	query := `SELECT id, short_id, original_url, created_at FROM urls WHERE short_id = $1`
+	query := `
+		SELECT id, short_id, original_url, created_at FROM urls 
+		WHERE short_id = $1`
 	url := &model.URL{}
 	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
 	if err != nil {
@@ -81,7 +86,9 @@ func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.UR
 }
 
 func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
-	query := `SELECT id, short_id, original_url, created_at FROM urls`
+	query := `
+		SELECT id, short_id, original_url, created_at 
+		FROM urls`
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find URLs: %v", err)

@@ -44,22 +44,22 @@ func TestURLRepository_Insert(t *testing.T) {
 		{
 			name:        "Successful Insert",
 			shortID:     "abc123",
-			originalURL: "http://example.com",
+			originalURL: "http://example1.com",
 			mockSetup: func() {
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example.com").
+					WithArgs("abc123", "http://example1.com").
 					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example.com", time.Now()))
+						AddRow(1, "abc123", "http://example1.com", time.Now()))
 			},
 			expectedError: nil,
 		},
 		{
 			name:        "Insert Error",
 			shortID:     "abc123",
-			originalURL: "http://example.com",
+			originalURL: "http://example2.com",
 			mockSetup: func() {
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example.com").
+					WithArgs("abc123", "http://example2.com").
 					WillReturnError(errors.New("insert error"))
 			},
 			expectedError: errors.New("failed to insert URL: insert error"),
@@ -102,19 +102,19 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "Successful InsertList",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example.com"},
-				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+				{ShortID: "abc123", OriginalURL: "http://example3.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example3.com"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example.com").
+					WithArgs("abc123", "http://example3.com").
 					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example.com", time.Now()))
+						AddRow(1, "abc123", "http://example3.com", time.Now()))
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("xyz789", "http://another-example.com").
+					WithArgs("xyz789", "http://another-example3.com").
 					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(2, "xyz789", "http://another-example.com", time.Now()))
+						AddRow(2, "xyz789", "http://another-example3.com", time.Now()))
 				mockDB.ExpectCommit()
 			},
 			expectedError: nil,
@@ -122,7 +122,7 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "InsertList Transaction Error",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example.com"},
+				{ShortID: "abc123", OriginalURL: "http://example4.com"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin().
@@ -133,17 +133,17 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "InsertList Insert Error",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example.com"},
-				{ShortID: "xyz789", OriginalURL: "http://another-example.com"},
+				{ShortID: "abc123", OriginalURL: "http://example4.com"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example4.com"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example.com").
+					WithArgs("abc123", "http://example4.com").
 					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example.com", time.Now()))
+						AddRow(1, "abc123", "http://example4.com", time.Now()))
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("xyz789", "http://another-example.com").
+					WithArgs("xyz789", "http://another-example4.com").
 					WillReturnError(fmt.Errorf("insert error"))
 				mockDB.ExpectRollback()
 			},

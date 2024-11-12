@@ -76,15 +76,20 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 		s.log.Warnf("Invalid URL: %s, error: %v", url, err)
 		return "", err
 	}
+	generateID := utils.Generate(MaxIDLength)
 	// Создаем объект URL модели
 	modelURL := model.URL{
-		ShortID:     utils.Generate(MaxIDLength),
+		ShortID:     generateID,
 		OriginalURL: url,
 	}
 	newURL, err := s.urlRepo.Insert(ctx, &modelURL)
 	if err != nil {
 		s.log.Errorf("Failed to add URL to memory repository: %v", err)
 		return "", err
+	}
+	if newURL.ShortID != generateID {
+		s.log.Infof("URL already exists: %s -> %s", newURL.OriginalURL, newURL.ShortID)
+		return fmt.Sprintf("%s/%s", s.config.BaseURL, newURL.ShortID), errors.New("conflict: URL already shortened")
 	}
 	s.log.Infof("Successfully shortened URL: %s -> %s", newURL.OriginalURL, newURL.ShortID)
 	shortID := fmt.Sprintf("%s/%s", s.config.BaseURL, newURL.ShortID)

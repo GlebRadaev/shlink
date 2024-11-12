@@ -6,6 +6,7 @@ import (
 
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/model"
+	"github.com/GlebRadaev/shlink/internal/utils"
 )
 
 type MemoryStorage struct {
@@ -24,6 +25,15 @@ func (s *MemoryStorage) Insert(ctx context.Context, url *model.URL) (*model.URL,
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	for shortID, originalURL := range s.data {
+		if originalURL == url.OriginalURL {
+			url.ShortID = shortID
+			return url, nil
+		}
+	}
+	if _, exists := s.data[url.ShortID]; exists {
+		url.ShortID = utils.Generate(8)
 	}
 	s.data[url.ShortID] = url.OriginalURL
 	return url, nil

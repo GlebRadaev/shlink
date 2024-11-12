@@ -45,7 +45,7 @@ func TestRoutes(t *testing.T) {
 			method:     http.MethodPost,
 			url:        "/",
 			statusCode: http.StatusCreated,
-			body:       []byte("http://example.com"),
+			body:       []byte("http://example-one.com"),
 			headers:    nil,
 		},
 		// {
@@ -61,7 +61,7 @@ func TestRoutes(t *testing.T) {
 			method:     http.MethodPost,
 			url:        "/api/shorten",
 			statusCode: http.StatusCreated,
-			body:       []byte(`{"url":"http://example.com"}`),
+			body:       []byte(`{"url":"http://example-two.com"}`),
 			headers: map[string]string{
 				"Content-Type": "application/json",
 			},

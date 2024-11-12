@@ -52,7 +52,12 @@ func TestMemoryStorage_Insert(t *testing.T) {
 			savedURL, err := storage.Insert(ctx, url)
 			assert.Equal(t, tt.wantErr, err)
 			if tt.wantErr == nil {
-				foundURL, err := storage.FindByID(ctx, tt.shortID)
+				if tt.shortID == "" {
+					assert.NotEmpty(t, savedURL.ShortID, "Expected a generated ShortID for an empty input")
+				} else {
+					assert.Equal(t, tt.shortID, savedURL.ShortID)
+				}
+				foundURL, err := storage.FindByID(ctx, savedURL.ShortID)
 				assert.NoError(t, err)
 				assert.Equal(t, savedURL.OriginalURL, foundURL.OriginalURL, "Expected the longURL to match the saved value")
 			}

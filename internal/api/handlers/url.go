@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
@@ -33,6 +34,12 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	shortID, err := h.urlService.Shorten(r.Context(), string(body))
 	if err != nil {
+		if strings.Contains(err.Error(), "conflict") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(shortID))
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -41,7 +48,6 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write([]byte(shortID))
 	if err != nil {
 		fmt.Println(err)
-
 		http.Error(w, "Failed to write response", http.StatusBadRequest)
 		return
 	}
@@ -76,6 +82,12 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	shortID, err := h.urlService.Shorten(r.Context(), data.URL)
 	if err != nil {
+		if strings.Contains(err.Error(), "conflict") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
