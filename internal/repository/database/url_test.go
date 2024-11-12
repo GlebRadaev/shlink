@@ -20,10 +20,6 @@ import (
 func setupMockRepository(t *testing.T) (interfaces.IURLRepository, pgxmock.PgxPoolIface) {
 	mockDB, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-
-	mockDB.ExpectExec(`CREATE TABLE IF NOT EXISTS urls`).
-		WillReturnResult(pgxmock.NewResult("CREATE", 1))
-
 	repo := database.NewURLRepository(mockDB)
 
 	return repo, mockDB

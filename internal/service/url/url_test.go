@@ -150,7 +150,6 @@ func TestURLService_Shorten(t *testing.T) {
 		// {
 		// 	name: "valid http URL",
 		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-		// 		mockURLRepo.EXPECT().List(gomock.Any()).Return([]*model.URL{}, nil)
 		// 		mockURLRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
 		// 		mockURLRepo.EXPECT().FindByID(ctx, "testID12").Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
 		// 	},

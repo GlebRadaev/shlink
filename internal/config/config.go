@@ -11,7 +11,7 @@ type Config struct {
 	ServerAddress   string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
 	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"`
-	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""` // postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""` // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
 }
 
 func ParseAndLoadConfig() (*Config, error) {

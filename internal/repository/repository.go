@@ -2,13 +2,18 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/repository/database"
 	"github.com/GlebRadaev/shlink/internal/repository/inmemory"
+	"github.com/GlebRadaev/shlink/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type Repositories struct {
@@ -22,6 +27,9 @@ func NewRepositoryFactory(ctx context.Context, cfg *config.Config, log *logger.L
 		pool, err := pgxpool.New(ctx, cfg.DatabaseDSN)
 		if err == nil {
 			logger.Info("Connected to database.")
+			if err := Migrate(ctx, cfg.DatabaseDSN); err != nil {
+				logger.Error("Failed to run migrations: %v", err)
+			}
 			urlRepo = database.NewURLRepository(pool)
 		} else {
 			logger.Info("Connected to in-memory storage (failed to connect to database): %v", err)
@@ -33,4 +41,15 @@ func NewRepositoryFactory(ctx context.Context, cfg *config.Config, log *logger.L
 	}
 
 	return &Repositories{URLRepo: urlRepo}
+}
+
+func Migrate(ctx context.Context, dsn string) error {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	goose.SetBaseFS(migrations.Migrations)
+	return goose.RunContext(ctx, "up", db, ".")
 }

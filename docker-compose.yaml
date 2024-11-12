@@ -1,0 +1,14 @@
+services:
+  shlink-postgres:
+    image: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:?Please configure DATABASE_USERNAME in the .env file}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Please configure DATABASE_PASSWORD in the .env file}
+      POSTGRES_DB: ${DATABASE_NAME:?Please configure DATABASE_NAME in the .env file}
+    volumes:
+      - shlink-postgres-data:/var/lib/postgresql/shlink/data
+    ports:
+      - ${DATABASE_PORT:?Please configure DATABASE_PORT in the .env file}:5432
+volumes:
+  shlink-postgres-data:
