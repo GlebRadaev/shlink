@@ -6,16 +6,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/GlebRadaev/shlink/internal/api"
 	"github.com/GlebRadaev/shlink/internal/api/handlers"
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
+	"github.com/GlebRadaev/shlink/internal/middleware"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
-
-	"github.com/GlebRadaev/shlink/internal/api"
-
-	"github.com/GlebRadaev/shlink/internal/middleware"
-	"github.com/go-chi/chi/v5"
 )
 
 type Application struct {

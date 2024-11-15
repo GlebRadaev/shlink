@@ -3,7 +3,7 @@ ifneq (,$(wildcard .env))
     export $(shell sed 's/=.*//' .env)
 endif
 
-MIGRATIONS_PATH=./migrations
+MIGRATIONS_PATH ?= migrations
 GOOSE_BIN=goose
 
 DB_DSN=${DATABASE_DSN}

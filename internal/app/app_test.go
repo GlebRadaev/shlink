@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GlebRadaev/shlink/internal/app"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/GlebRadaev/shlink/internal/app"
 )
 
 func resetFlagsAndArgs() {
