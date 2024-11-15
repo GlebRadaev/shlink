@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
@@ -30,8 +32,14 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	shortID, err := h.urlService.Shorten(string(body))
+	shortID, err := h.urlService.Shorten(r.Context(), string(body))
 	if err != nil {
+		if strings.Contains(err.Error(), "conflict") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(shortID))
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -39,6 +47,7 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	_, err = w.Write([]byte(shortID))
 	if err != nil {
+		fmt.Println(err)
 		http.Error(w, "Failed to write response", http.StatusBadRequest)
 		return
 	}
@@ -48,7 +57,7 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	originalURL, err := h.urlService.GetOriginal(id)
+	originalURL, err := h.urlService.GetOriginal(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -62,20 +71,53 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var data dto.ShortenJSONRequestDTO
-	if err := data.ValidateRequest(r.Body); err != nil {
+	var data dto.ShortenRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "cannot decode request", http.StatusBadRequest)
+		return
+	}
+	if data.URL == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+	shortID, err := h.urlService.Shorten(r.Context(), data.URL)
+	if err != nil {
+		if strings.Contains(err.Error(), "conflict") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	shortID, err := h.urlService.Shorten(data.URL)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID}); err != nil {
+		http.Error(w, "Error encoding response", http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
+	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var data dto.BatchShortenRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "cannot decode request", http.StatusBadRequest)
+		return
+	}
+	shortenResults, err := h.urlService.ShortenList(r.Context(), data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID}); err != nil {
-		http.Error(w, "Error encoding response", http.StatusBadRequest)
+	if err := json.NewEncoder(w).Encode(shortenResults); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
 		return
 	}
 }

@@ -25,3 +25,4 @@ vendor/
 # Lefthook configuration file
 /lefthook.yml
 
+.env

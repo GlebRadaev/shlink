@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"compress/gzip"
+
 	"io"
 	"log"
 	"net/http"
@@ -70,13 +71,27 @@ func TestCompressMiddleware(t *testing.T) {
 			expectedBody:    "OK",
 			expectedStatus:  http.StatusOK,
 		},
+		{
+			name:            "Compressed request with invalid gzip data", // Новый тест
+			handler:         http.HandlerFunc(okHandler),
+			acceptEncoding:  "gzip",
+			contentEncoding: "gzip",
+			requestBody:     "Invalid gzip data",            // Некорректные данные
+			expectedBody:    "",                             // Ожидаем пустое тело
+			expectedStatus:  http.StatusInternalServerError, // Ошибка 500
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var reqBody io.Reader
 			if tt.contentEncoding == "gzip" {
-				reqBody = gzipCompress(tt.requestBody)
+				if tt.name == "Compressed request with invalid gzip data" {
+					// Для некорректных данных просто передаем их как есть
+					reqBody = strings.NewReader(tt.requestBody)
+				} else {
+					reqBody = gzipCompress(tt.requestBody)
+				}
 			} else {
 				reqBody = strings.NewReader(tt.requestBody)
 			}
@@ -97,10 +112,15 @@ func TestCompressMiddleware(t *testing.T) {
 			var err error
 			if tt.acceptEncoding == "gzip" {
 				gzr, err := gzip.NewReader(res.Body)
-				assert.NoError(t, err, "ошибка при создании gzip.Reader")
-				defer gzr.Close()
-				body, err = io.ReadAll(gzr)
-				assert.NoError(t, err, "ошибка при чтении сжатого тела ответа")
+				if err != nil {
+					// Если ошибка при декомпрессии, то тело должно быть пустым
+					body = []byte{}
+					assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+				} else {
+					defer gzr.Close()
+					body, err = io.ReadAll(gzr)
+					assert.NoError(t, err, "ошибка при чтении сжатого тела ответа")
+				}
 			} else {
 				body, err = io.ReadAll(res.Body)
 				assert.NoError(t, err, "ошибка при чтении тела ответа")
@@ -109,4 +129,35 @@ func TestCompressMiddleware(t *testing.T) {
 			assert.Equal(t, tt.expectedBody, string(body))
 		})
 	}
+}
+
+func TestCompressWriter_Header(t *testing.T) {
+	rec := httptest.NewRecorder()
+	compressWriter := &compressWriter{w: rec}
+
+	rec.Header().Set("Content-Type", "application/json")
+	rec.Header().Set("X-Custom-Header", "value")
+
+	headers := compressWriter.Header()
+	assert.Equal(t, "application/json", headers.Get("Content-Type"))
+	assert.Equal(t, "value", headers.Get("X-Custom-Header"))
+
+}
+
+func TestCompressReader_Read(t *testing.T) {
+	originalData := "Hello, world!"
+	compressedData := gzipCompress(originalData)
+	zr, err := gzip.NewReader(bytes.NewReader(compressedData.Bytes()))
+	assert.NoError(t, err)
+	reader := &compressReader{zr: zr}
+
+	buf := make([]byte, len(originalData))
+
+	n, err := reader.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	assert.Equal(t, len(originalData), n)
+	assert.Equal(t, originalData, string(buf))
 }
