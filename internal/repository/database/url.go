@@ -20,13 +20,13 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 
 func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	query := `
-		INSERT INTO urls (short_id, original_url) 
-		VALUES ($1, $2) 
+		INSERT INTO urls (short_id, original_url, user_id) 
+		VALUES ($1, $2, $3) 
 		ON CONFLICT (original_url) DO UPDATE 
 		SET short_id = urls.short_id 
-		RETURNING id, short_id, original_url, created_at`
-	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL).
-		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
+		RETURNING id, short_id, original_url, user_id, created_at`
+	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL, url.UserID).
+		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert URL: %v", err)
 	}
@@ -58,10 +58,10 @@ func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*m
 
 func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
 	query := `
-		SELECT id, short_id, original_url, created_at FROM urls 
+		SELECT id, short_id, original_url, user_id, created_at FROM urls 
 		WHERE short_id = $1`
 	url := &model.URL{}
-	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
+	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, err
@@ -71,9 +71,30 @@ func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.UR
 	return url, nil
 }
 
+func (r *URLRepository) FindListByUserID(ctx context.Context, userID string) ([]*model.URL, error) {
+	query := `
+		SELECT id, short_id, original_url, user_id, created_at FROM urls 
+		WHERE user_id = $1`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []*model.URL
+	for rows.Next() {
+		url := &model.URL{}
+		err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		urls = append(urls, url)
+	}
+	return urls, nil
+}
 func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	query := `
-		SELECT id, short_id, original_url, created_at 
+		SELECT id, short_id, original_url, created_at, user_id 
 		FROM urls`
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -84,7 +105,7 @@ func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	var urls []*model.URL
 	for rows.Next() {
 		url := &model.URL{}
-		if err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt); err != nil {
+		if err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt, &url.UserID); err != nil {
 			return nil, fmt.Errorf("failed to scan URL data: %v", err)
 		}
 		urls = append(urls, url)

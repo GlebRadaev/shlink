@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
@@ -58,11 +59,11 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			name: "valid URL",
 			args: args{
 				contentType: "text/plain",
-				body:        "http://example.com",
+				body:        fmt.Sprintf("http://example.com?test=%d", time.Now().UnixNano()),
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   "http://localhost/shortID",
-			mockReader: strings.NewReader("http://example.com"),
+			mockReader: strings.NewReader(fmt.Sprintf("http://example.com?test=%d", time.Now().UnixNano())),
 		},
 		{
 			name: "invalid URL format (URL too long)",
@@ -143,7 +144,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 			name: "valid ID",
 			args: args{id: "validIDD"},
 			setup: func(service *url.URLService) string {
-				url, _ := service.Shorten(ctx, "http://example.com")
+				url, _ := service.Shorten(ctx, "userID", "http://example.com")
 				splitURL := strings.Split(url, "/")
 				shortID := splitURL[len(splitURL)-1]
 				return shortID
@@ -217,7 +218,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 			name: "valid JSON request",
 			args: args{
 				contentType: "application/json",
-				body:        `{"url": "http://example.com"}`,
+				body:        fmt.Sprintf(`{"url": "http://example.com?test=%d"}`, time.Now().UnixNano()),
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   `http://localhost:8080/`,

@@ -34,6 +34,7 @@ func TestURLRepository_Insert(t *testing.T) {
 		name          string
 		shortID       string
 		originalURL   string
+		userID        string
 		mockSetup     func()
 		expectedError error
 	}{
@@ -41,11 +42,12 @@ func TestURLRepository_Insert(t *testing.T) {
 			name:        "Successful Insert",
 			shortID:     "abc123",
 			originalURL: "http://example1.com",
+			userID:      "user123",
 			mockSetup: func() {
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example1.com").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example1.com", time.Now()))
+					WithArgs("abc123", "http://example1.com", "user123").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(1, "abc123", "http://example1.com", "user123", time.Now()))
 			},
 			expectedError: nil,
 		},
@@ -53,9 +55,10 @@ func TestURLRepository_Insert(t *testing.T) {
 			name:        "Insert Error",
 			shortID:     "abc123",
 			originalURL: "http://example2.com",
+			userID:      "user124",
 			mockSetup: func() {
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example2.com").
+					WithArgs("abc123", "http://example2.com", "user124").
 					WillReturnError(errors.New("insert error"))
 			},
 			expectedError: errors.New("failed to insert URL: insert error"),
@@ -68,6 +71,7 @@ func TestURLRepository_Insert(t *testing.T) {
 			url := &model.URL{
 				ShortID:     tt.shortID,
 				OriginalURL: tt.originalURL,
+				UserID:      tt.userID,
 			}
 
 			insertedURL, err := repo.Insert(ctx, url)
@@ -98,19 +102,19 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "Successful InsertList",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example3.com"},
-				{ShortID: "xyz789", OriginalURL: "http://another-example3.com"},
+				{ShortID: "abc123", OriginalURL: "http://example3.com", UserID: "user123"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example3.com", UserID: "user124"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example3.com").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example3.com", time.Now()))
+					WithArgs("abc123", "http://example3.com", "user123").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(1, "abc123", "http://example3.com", "user123", time.Now()))
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("xyz789", "http://another-example3.com").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(2, "xyz789", "http://another-example3.com", time.Now()))
+					WithArgs("xyz789", "http://another-example3.com", "user124").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(2, "xyz789", "http://another-example3.com", "user124", time.Now()))
 				mockDB.ExpectCommit()
 			},
 			expectedError: nil,
@@ -118,7 +122,7 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "InsertList Transaction Error",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example4.com"},
+				{ShortID: "abc123", OriginalURL: "http://example4.com", UserID: "user125"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin().
@@ -129,17 +133,17 @@ func TestURLRepository_InsertList(t *testing.T) {
 		{
 			name: "InsertList Insert Error",
 			urls: []*model.URL{
-				{ShortID: "abc123", OriginalURL: "http://example4.com"},
-				{ShortID: "xyz789", OriginalURL: "http://another-example4.com"},
+				{ShortID: "abc123", OriginalURL: "http://example4.com", UserID: "user125"},
+				{ShortID: "xyz789", OriginalURL: "http://another-example4.com", UserID: "user126"},
 			},
 			mockSetup: func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("abc123", "http://example4.com").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example4.com", time.Now()))
+					WithArgs("abc123", "http://example4.com", "user125").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(1, "abc123", "http://example4.com", "user125", time.Now()))
 				mockDB.ExpectQuery(`INSERT INTO urls`).
-					WithArgs("xyz789", "http://another-example4.com").
+					WithArgs("xyz789", "http://another-example4.com", "user126").
 					WillReturnError(fmt.Errorf("insert error"))
 				mockDB.ExpectRollback()
 			},
@@ -184,31 +188,31 @@ func TestURLRepository_FindByID(t *testing.T) {
 			name:    "Successful FindByID",
 			shortID: "12345678",
 			mockSetup: func() {
-				// Фиксируем текущее время в переменной для последующего сравнения
 				fixedTime := time.Now()
 
-				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, created_at FROM urls WHERE short_id = $1`)).
+				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE short_id = $1`)).
 					WithArgs("12345678").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "12345678", "http://example.com", fixedTime))
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(1, "12345678", "http://example.com", "user123", fixedTime))
 			},
 			expectedError: nil,
 			expectedURL: &model.URL{
 				ID:          1,
 				ShortID:     "12345678",
 				OriginalURL: "http://example.com",
+				UserID:      "user123",
 			},
 		},
 		{
 			name:    "FindByID Error - No Rows",
 			shortID: "nonexistentID",
 			mockSetup: func() {
-				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, created_at FROM urls WHERE short_id = $1`)).
+				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE short_id = $1`)).
 					WithArgs("nonexistentID").
-					WillReturnError(pgx.ErrNoRows) // Используем правильную ошибку из pgx
+					WillReturnError(pgx.ErrNoRows)
 			},
-			expectedError: pgx.ErrNoRows, // Ожидаем ошибку pgx.ErrNoRows
-			expectedURL:   nil,           // Ожидаем, что результат будет nil
+			expectedError: pgx.ErrNoRows,
+			expectedURL:   nil,
 		},
 	}
 
@@ -219,17 +223,12 @@ func TestURLRepository_FindByID(t *testing.T) {
 			foundURL, err := repo.FindByID(ctx, tt.shortID)
 
 			if tt.expectedError != nil {
-				// Если ожидается ошибка, проверяем, что ошибка была и что она соответствует ожидаемой
 				assert.Error(t, err)
-				// Сравниваем ошибку напрямую
 				assert.Equal(t, tt.expectedError, err)
 			} else {
-				// Если ошибки нет, проверяем, что возвращается правильный URL
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedURL.ShortID, foundURL.ShortID)
 				assert.Equal(t, tt.expectedURL.OriginalURL, foundURL.OriginalURL)
-
-				// Проверяем, что время совпадает с фиксированным временем (с небольшим допуском)
 				assert.WithinDuration(t, foundURL.CreatedAt, time.Now(), 1*time.Second)
 			}
 		})
@@ -240,6 +239,7 @@ func TestURLRepository_List(t *testing.T) {
 	ctx := context.Background()
 	repo, mockDB := setupMockRepository(t)
 	defer mockDB.Close()
+	fixedTime := time.Date(2024, time.November, 17, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name          string
@@ -250,21 +250,21 @@ func TestURLRepository_List(t *testing.T) {
 		{
 			name: "Successful List",
 			mockSetup: func() {
-				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at FROM urls`).
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example.com", time.Now()).
-						AddRow(2, "xyz789", "http://another-example.com", time.Now()))
+				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at, user_id FROM urls`).
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at", "user_id"}).
+						AddRow(1, "abc123", "http://example.com", fixedTime, "user123").
+						AddRow(2, "xyz789", "http://another-example.com", fixedTime, "user456"))
 			},
 			expectedURLs: []*model.URL{
-				{ID: 1, ShortID: "abc123", OriginalURL: "http://example.com", CreatedAt: time.Now()},
-				{ID: 2, ShortID: "xyz789", OriginalURL: "http://another-example.com", CreatedAt: time.Now()},
+				{ID: 1, ShortID: "abc123", OriginalURL: "http://example.com", CreatedAt: fixedTime, UserID: "user123"},
+				{ID: 2, ShortID: "xyz789", OriginalURL: "http://another-example.com", CreatedAt: fixedTime, UserID: "user456"},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "List Error",
 			mockSetup: func() {
-				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at FROM urls`).
+				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at, user_id FROM urls`).
 					WillReturnError(fmt.Errorf("error fetching URLs"))
 			},
 			expectedURLs:  nil,
@@ -273,11 +273,11 @@ func TestURLRepository_List(t *testing.T) {
 		{
 			name: "List Scan Error",
 			mockSetup: func() {
-				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at FROM urls`).
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at"}).
-						AddRow(1, "abc123", "http://example.com", time.Now()).
-						AddRow(2, "xyz789", "http://another-example.com", time.Now()).
-						RowError(1, fmt.Errorf("failed to scan URL data"))) // Симулируем ошибку на втором ряду
+				mockDB.ExpectQuery(`SELECT id, short_id, original_url, created_at, user_id FROM urls`).
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "created_at", "user_id"}).
+						AddRow(1, "abc123", "http://example.com", fixedTime, "user123").
+						AddRow(2, "xyz789", "http://another-example.com", fixedTime, "user456").
+						RowError(1, fmt.Errorf("failed to scan URL data")))
 			},
 			expectedURLs:  nil,
 			expectedError: fmt.Errorf("failed to scan URL data: failed to scan URL data"),
@@ -346,6 +346,67 @@ func TestURLRepository_Ping(t *testing.T) {
 				assert.Equal(t, tt.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestURLRepository_ListByUserID(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		mockSetup     func()
+		userID        string
+		expectedURLs  []*model.URL
+		expectedError error
+	}{
+		{
+			name: "Successful List By UserID",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE user_id = \$1`).
+					WithArgs("user123").
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
+						AddRow(1, "abc123", "http://example.com", "user123", time.Now()))
+			},
+			userID: "user123",
+			expectedURLs: []*model.URL{
+				{ID: 1, ShortID: "abc123", OriginalURL: "http://example.com", CreatedAt: time.Now(), UserID: "user123"},
+			},
+			expectedError: nil,
+		},
+		{
+			name: "List By UserID Error",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE user_id = \$1`).
+					WithArgs("user123").
+					WillReturnError(fmt.Errorf("error fetching URLs for user 123"))
+			},
+			userID:        "user123",
+			expectedURLs:  nil,
+			expectedError: fmt.Errorf("error fetching URLs for user 123"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+
+			urls, err := repo.FindListByUserID(ctx, tt.userID)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, urls, len(tt.expectedURLs))
+				for i, url := range urls {
+					assert.Equal(t, tt.expectedURLs[i].ShortID, url.ShortID)
+					assert.Equal(t, tt.expectedURLs[i].OriginalURL, url.OriginalURL)
+					assert.Equal(t, tt.expectedURLs[i].UserID, url.UserID)
+				}
 			}
 		})
 	}

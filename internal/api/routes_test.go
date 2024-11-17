@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"testing"
 
@@ -17,6 +18,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
+
+func generateDynamicURL(baseURL string) string {
+	return baseURL + "?t=" + time.Now().Format(time.RFC3339Nano)
+}
 
 func TestRoutes(t *testing.T) {
 	ctx := context.Background()
@@ -45,7 +50,7 @@ func TestRoutes(t *testing.T) {
 			method:     http.MethodPost,
 			url:        "/",
 			statusCode: http.StatusCreated,
-			body:       []byte("http://example-one.com"),
+			body:       []byte(generateDynamicURL("http://example.com")),
 			headers:    nil,
 		},
 		// {
@@ -61,7 +66,7 @@ func TestRoutes(t *testing.T) {
 			method:     http.MethodPost,
 			url:        "/api/shorten",
 			statusCode: http.StatusCreated,
-			body:       []byte(`{"url":"http://example-two.com"}`),
+			body:       []byte(`{"url":"` + generateDynamicURL("http://example.com") + `"}`),
 			headers: map[string]string{
 				"Content-Type": "application/json",
 			},

@@ -10,6 +10,7 @@ func Routes(r *chi.Mux, urlHandlers *handlers.URLHandlers, healthHandlers *handl
 	r.Get("/{id}", urlHandlers.Redirect)
 	r.Post("/api/shorten", urlHandlers.ShortenJSON)
 	r.Post("/api/shorten/batch", urlHandlers.ShortenJSONBatch)
+	r.Get("/api/user/urls", urlHandlers.GetUserURLs)
 
 	r.Get("/ping", healthHandlers.Ping)
 }

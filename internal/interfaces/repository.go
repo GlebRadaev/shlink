@@ -10,6 +10,7 @@ type IURLRepository interface {
 	Insert(ctx context.Context, url *model.URL) (*model.URL, error)
 	InsertList(ctx context.Context, urls []*model.URL) ([]*model.URL, error)
 	FindByID(ctx context.Context, shortID string) (*model.URL, error)
+	FindListByUserID(ctx context.Context, userID string) ([]*model.URL, error)
 	List(ctx context.Context) ([]*model.URL, error)
 	Ping(ctx context.Context) error
 }
