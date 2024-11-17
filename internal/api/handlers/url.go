@@ -26,13 +26,14 @@ func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 
 // Shorten handles the request to shorten a URL
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
+	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
-	shortID, err := h.urlService.Shorten(r.Context(), string(body))
+	shortID, err := h.urlService.Shorten(r.Context(), userID, string(body))
 	if err != nil {
 		if strings.Contains(err.Error(), "conflict") {
 			w.Header().Set("Content-Type", "text/plain")
@@ -67,11 +68,12 @@ func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
+	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var data dto.ShortenRequestDTO
+	var data dto.ShortenJSONRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "cannot decode request", http.StatusBadRequest)
 		return
@@ -80,12 +82,13 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
-	shortID, err := h.urlService.Shorten(r.Context(), data.URL)
+
+	shortID, err := h.urlService.Shorten(r.Context(), userID, data.URL)
 	if err != nil {
 		if strings.Contains(err.Error(), "conflict") {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID})
+			_ = json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID})
 			return
 		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -93,13 +96,14 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(dto.ShortenResponseDTO{Result: shortID}); err != nil {
+	if err := json.NewEncoder(w).Encode(dto.ShortenJSONResponseDTO{Result: shortID}); err != nil {
 		http.Error(w, "Error encoding response", http.StatusBadRequest)
 		return
 	}
 }
 
 func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
+	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -109,7 +113,8 @@ func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot decode request", http.StatusBadRequest)
 		return
 	}
-	shortenResults, err := h.urlService.ShortenList(r.Context(), data)
+
+	shortenResults, err := h.urlService.ShortenList(r.Context(), userID, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -117,6 +122,30 @@ func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(shortenResults); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *URLHandlers) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID, ok := utils.GetUserIDFromCookie(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.urlService.GetUserURLs(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(urls) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(urls); err != nil {
 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
 		return
 	}

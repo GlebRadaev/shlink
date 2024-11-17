@@ -69,7 +69,7 @@ func (s *URLService) SaveData(ctx context.Context) error {
 }
 
 // ShortenURL shortens a given URL and returns the short version
-func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
+func (s *URLService) Shorten(ctx context.Context, userID string, url string) (string, error) {
 	s.log.Infof("Attempting to shorten URL: %s", url)
 	_, err := utils.ValidateURL(url)
 	if err != nil {
@@ -77,10 +77,10 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	generateID := utils.Generate(MaxIDLength)
-	// Создаем объект URL модели
 	modelURL := model.URL{
 		ShortID:     generateID,
 		OriginalURL: url,
+		UserID:      userID,
 	}
 	newURL, err := s.urlRepo.Insert(ctx, &modelURL)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 }
 
 // ShortenURL shortens a given URL and returns the short version
-func (s *URLService) ShortenList(ctx context.Context, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
+func (s *URLService) ShortenList(ctx context.Context, userID string, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
 	resultData := make([]dto.BatchShortenResponse, 0, len(data))
 	insertData := make([]*model.URL, 0, len(data))
 	for _, dataInfo := range data {
@@ -109,6 +109,7 @@ func (s *URLService) ShortenList(ctx context.Context, data dto.BatchShortenReque
 		modelURL := model.URL{
 			ShortID:     utils.Generate(MaxIDLength),
 			OriginalURL: dataInfo.OriginalURL,
+			UserID:      userID,
 		}
 		insertData = append(insertData, &modelURL)
 		resultData = append(resultData, dto.BatchShortenResponse{
@@ -144,4 +145,24 @@ func (s *URLService) GetOriginal(ctx context.Context, id string) (string, error)
 	}
 	s.log.Infof("Found URL for ID %s: %s", id, url.OriginalURL)
 	return url.OriginalURL, nil
+}
+
+func (s *URLService) GetUserURLs(ctx context.Context, userID string) (dto.GetUserURLsResponseDTO, error) {
+	urls, err := s.urlRepo.FindListByUserID(ctx, userID)
+	if err != nil {
+		s.log.Errorf("Error getting URLs for user ID %s: %v", userID, err)
+		return nil, err
+	}
+	if len(urls) == 0 {
+		s.log.Errorf("URL not found for user ID %s", userID)
+		return dto.GetUserURLsResponseDTO{}, nil
+	}
+	var responseDTO dto.GetUserURLsResponseDTO
+	for _, url := range urls {
+		responseDTO = append(responseDTO, dto.GetUserURLsResponse{
+			ShortURL:    fmt.Sprintf("%s/%s", s.config.BaseURL, url.ShortID),
+			OriginalURL: url.OriginalURL,
+		})
+	}
+	return responseDTO, nil
 }

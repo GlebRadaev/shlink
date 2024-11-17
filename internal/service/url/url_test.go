@@ -3,6 +3,7 @@ package url_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -147,24 +148,6 @@ func TestURLService_Shorten(t *testing.T) {
 		args      args
 		wantErr   error
 	}{
-		// {
-		// 	name: "valid http URL",
-		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-		// 		mockURLRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
-		// 		mockURLRepo.EXPECT().FindByID(ctx, "testID12").Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
-		// 	},
-		// 	args:    args{url: "http://example3.com"},
-		// 	wantErr: nil,
-		// },
-		// {
-		// 	name: "valid https URL",
-		// 	args: args{url: "https://example4.com"},
-		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-		// 		mockURLRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(&model.URL{ShortID: "testID12", OriginalURL: "https://example4.com"}, nil)
-		// 		mockURLRepo.EXPECT().FindByID(ctx, "testID12").Return(&model.URL{ShortID: "testID12", OriginalURL: "https://example4.com"}, nil)
-		// 	},
-		// 	wantErr: nil,
-		// },
 		{
 			name: "error inserting URL into memory repository",
 			args: args{url: "https://example.com"},
@@ -194,7 +177,7 @@ func TestURLService_Shorten(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock(mockURLRepo)
-			got, err := urlService.Shorten(ctx, tt.args.url)
+			got, err := urlService.Shorten(ctx, "user123", tt.args.url)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
@@ -268,7 +251,7 @@ func TestURLService_ShortenList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock(mockURLRepo)
-			got, err := urlService.ShortenList(ctx, tt.data)
+			got, err := urlService.ShortenList(ctx, "user123", tt.data)
 
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
@@ -353,6 +336,70 @@ func TestURLService_GetOriginal(t *testing.T) {
 			got, err := urlService.GetOriginal(ctx, tt.args.id)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestURLService_GetUserURLs(t *testing.T) {
+	ctx := context.Background()
+	mockURLRepo, urlService, _, cfg, err := setup(t)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		userID    string
+		setupMock func(mockURLRepo *repository.MockIURLRepository)
+		want      dto.GetUserURLsResponseDTO
+		wantErr   error
+	}{
+		{
+			name:   "success",
+			userID: "testUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("testUser")).Return([]*model.URL{
+					{ShortID: "short1", OriginalURL: "http://example1.com", UserID: "testUser"},
+					{ShortID: "short2", OriginalURL: "https://example2.com", UserID: "testUser"},
+				}, nil)
+			},
+			want: dto.GetUserURLsResponseDTO{
+				{ShortURL: fmt.Sprintf("%s/short1", cfg.BaseURL), OriginalURL: "http://example1.com"},
+				{ShortURL: fmt.Sprintf("%s/short2", cfg.BaseURL), OriginalURL: "https://example2.com"},
+			},
+			wantErr: nil,
+		},
+		{
+			name:   "not found",
+			userID: "notFoundUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("notFoundUser")).Return([]*model.URL{}, nil)
+			},
+			want:    dto.GetUserURLsResponseDTO{},
+			wantErr: nil,
+		},
+		{
+			name:   "repository error",
+			userID: "errorUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("errorUser")).Return(nil, errors.New("repository error"))
+			},
+			want:    nil,
+			wantErr: errors.New("repository error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock(mockURLRepo)
+			got, err := urlService.GetUserURLs(ctx, tt.userID)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				assert.Nil(t, got)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)

@@ -56,6 +56,21 @@ func (mr *MockIURLRepositoryMockRecorder) FindByID(ctx, shortID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockIURLRepository)(nil).FindByID), ctx, shortID)
 }
 
+// FindListByUserID mocks base method.
+func (m *MockIURLRepository) FindListByUserID(ctx context.Context, userID string) ([]*model.URL, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindListByUserID", ctx, userID)
+	ret0, _ := ret[0].([]*model.URL)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindListByUserID indicates an expected call of FindListByUserID.
+func (mr *MockIURLRepositoryMockRecorder) FindListByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindListByUserID", reflect.TypeOf((*MockIURLRepository)(nil).FindListByUserID), ctx, userID)
+}
+
 // Insert mocks base method.
 func (m *MockIURLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	m.ctrl.T.Helper()
