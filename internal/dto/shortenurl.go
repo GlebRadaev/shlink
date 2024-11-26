@@ -1,12 +1,12 @@
 package dto
 
-// ShortenRequestDTO defines the structure of the shorten request
-type ShortenRequestDTO struct {
+// ShortenJSONRequestDTO defines the structure of the shorten request
+type ShortenJSONRequestDTO struct {
 	URL string `json:"url"`
 }
 
-// ShortenResponseDTO defines the structure of the shorten response
-type ShortenResponseDTO struct {
+// ShortenJSONResponseDTO defines the structure of the shorten response
+type ShortenJSONResponseDTO struct {
 	Result string `json:"result"`
 }
 
@@ -32,3 +32,13 @@ type BatchShortenResponse struct {
 }
 
 type BatchShortenResponseDTO []BatchShortenResponse
+
+// GetUserURLsResponse defines the structure of the get user URLs response
+type GetUserURLsResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
+type GetUserURLsResponseDTO []GetUserURLsResponse
+
+type DeleteURLRequestDTO []string

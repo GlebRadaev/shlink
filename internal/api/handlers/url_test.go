@@ -10,12 +10,14 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/GlebRadaev/shlink/internal/service/url"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +38,9 @@ func setupURL(ctx context.Context) (*url.URLService, *config.Config, error) {
 		}
 	}
 	log, _ := logger.NewLogger("info")
+	pool := taskmanager.NewWorkerPool(ctx, 10, 1)
 	repositories := repository.NewRepositoryFactory(ctx, cfgTest, log)
-	services := service.NewServiceFactory(ctx, cfgTest, log, repositories)
+	services := service.NewServiceFactory(ctx, cfgTest, log, pool, repositories)
 	return services.URLService, cfgTest, nil
 }
 
@@ -58,11 +61,11 @@ func TestURLHandlers_Shorten(t *testing.T) {
 			name: "valid URL",
 			args: args{
 				contentType: "text/plain",
-				body:        "http://example.com",
+				body:        fmt.Sprintf("http://example.com?test=%d", time.Now().UnixNano()),
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   "http://localhost/shortID",
-			mockReader: strings.NewReader("http://example.com"),
+			mockReader: strings.NewReader(fmt.Sprintf("http://example.com?test=%d", time.Now().UnixNano())),
 		},
 		{
 			name: "invalid URL format (URL too long)",
@@ -143,7 +146,7 @@ func TestURLHandlers_Redirect(t *testing.T) {
 			name: "valid ID",
 			args: args{id: "validIDD"},
 			setup: func(service *url.URLService) string {
-				url, _ := service.Shorten(ctx, "http://example.com")
+				url, _ := service.Shorten(ctx, "userID", "http://example.com")
 				splitURL := strings.Split(url, "/")
 				shortID := splitURL[len(splitURL)-1]
 				return shortID
@@ -217,7 +220,7 @@ func TestURLHandlers_ShortenJSON(t *testing.T) {
 			name: "valid JSON request",
 			args: args{
 				contentType: "application/json",
-				body:        `{"url": "http://example.com"}`,
+				body:        fmt.Sprintf(`{"url": "http://example.com?test=%d"}`, time.Now().UnixNano()),
 			},
 			wantStatus: http.StatusCreated,
 			wantBody:   `http://localhost:8080/`,

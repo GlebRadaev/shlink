@@ -15,14 +15,16 @@ import (
 	"github.com/GlebRadaev/shlink/internal/middleware"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 )
 
 type Application struct {
-	Ctx      context.Context
-	Config   *config.Config
-	Logger   *logger.Logger
-	Services *service.Services
-	Server   *http.Server
+	Ctx        context.Context
+	Config     *config.Config
+	Logger     *logger.Logger
+	Services   *service.Services
+	Server     *http.Server
+	WorkerPool *taskmanager.WorkerPool
 }
 
 func NewApplication(ctx context.Context) *Application {
@@ -39,9 +41,9 @@ func (app *Application) Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %v", err)
 	}
-
+	app.WorkerPool = taskmanager.NewWorkerPool(app.Ctx, 100, 10)
 	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config, app.Logger)
-	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, repositories)
+	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, app.WorkerPool, repositories)
 	router := app.SetupRoutes()
 
 	app.Server = &http.Server{
@@ -82,7 +84,8 @@ func (app *Application) Shutdown() error {
 	} else {
 		logger.Info("Data successfully saved before shutdown")
 	}
-
+	app.WorkerPool.Shutdown()
+	logger.Info("Worker pool shutdown completed")
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/lib/pq"
 )
 
 type URLRepository struct {
@@ -20,13 +21,13 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 
 func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	query := `
-		INSERT INTO urls (short_id, original_url) 
-		VALUES ($1, $2) 
+		INSERT INTO urls (short_id, original_url, user_id) 
+		VALUES ($1, $2, $3) 
 		ON CONFLICT (original_url) DO UPDATE 
 		SET short_id = urls.short_id 
-		RETURNING id, short_id, original_url, created_at`
-	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL).
-		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
+		RETURNING id, short_id, original_url, user_id, created_at`
+	err := r.db.QueryRow(ctx, query, url.ShortID, url.OriginalURL, url.UserID).
+		Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert URL: %v", err)
 	}
@@ -58,22 +59,43 @@ func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*m
 
 func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
 	query := `
-		SELECT id, short_id, original_url, created_at FROM urls 
+		SELECT id, short_id, original_url, user_id, created_at, is_deleted FROM urls 
 		WHERE short_id = $1`
 	url := &model.URL{}
-	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt)
+	err := r.db.QueryRow(ctx, query, shortID).Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt, &url.DeletedFlag)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, err
+			return nil, nil
 		}
 		return nil, err
 	}
 	return url, nil
 }
 
+func (r *URLRepository) FindListByUserID(ctx context.Context, userID string) ([]*model.URL, error) {
+	query := `
+		SELECT id, short_id, original_url, user_id, created_at FROM urls 
+		WHERE user_id = $1`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []*model.URL
+	for rows.Next() {
+		url := &model.URL{}
+		err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.UserID, &url.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		urls = append(urls, url)
+	}
+	return urls, nil
+}
 func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	query := `
-		SELECT id, short_id, original_url, created_at 
+		SELECT id, short_id, original_url, created_at, user_id 
 		FROM urls`
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -84,7 +106,7 @@ func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	var urls []*model.URL
 	for rows.Next() {
 		url := &model.URL{}
-		if err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt); err != nil {
+		if err := rows.Scan(&url.ID, &url.ShortID, &url.OriginalURL, &url.CreatedAt, &url.UserID); err != nil {
 			return nil, fmt.Errorf("failed to scan URL data: %v", err)
 		}
 		urls = append(urls, url)
@@ -102,5 +124,31 @@ func (r *URLRepository) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *URLRepository) DeleteListByUserIDAndShortIDs(ctx context.Context, userID string, shortIDs []string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %v", err)
+	}
+
+	query := `
+		UPDATE urls
+		SET is_deleted = true
+		WHERE user_id = $1 AND short_id = ANY($2)
+	`
+	_, err = tx.Exec(ctx, query, userID, pq.Array(shortIDs))
+	if err != nil {
+		_ = tx.Rollback(ctx) // Игнорируем ошибку, но явным образом
+		return fmt.Errorf("failed to delete short urls for user: %w", err)
+	}
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Printf("Failed to commit transaction: %v", err)
+		_ = tx.Rollback(ctx) // Игнорируем ошибку, но явным образом
+		return fmt.Errorf("failed to commit transaction: %v", err)
+	}
+	log.Printf("Successfully marked URLs as deleted for userID=%s: %v", userID, shortIDs)
 	return nil
 }

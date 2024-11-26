@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/GlebRadaev/shlink/internal/config"
 	"github.com/GlebRadaev/shlink/internal/dto"
@@ -11,6 +12,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/model"
 	"github.com/GlebRadaev/shlink/internal/service/backup"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 	"github.com/GlebRadaev/shlink/internal/utils"
 
 	"go.uber.org/zap"
@@ -22,20 +24,30 @@ const (
 
 // URLService handles the business logic for shortening URLs
 type URLService struct {
-	log     *zap.SugaredLogger
-	config  *config.Config
-	backup  backup.IBackupService
-	urlRepo interfaces.IURLRepository
+	log      *zap.SugaredLogger
+	config   *config.Config
+	taskPool *taskmanager.WorkerPool
+	backup   backup.IBackupService
+	urlRepo  interfaces.IURLRepository
 }
 
 // NewURLService creates a new URLService
-func NewURLService(config *config.Config, log *logger.Logger, backup backup.IBackupService, urlRepo interfaces.IURLRepository) *URLService {
-	return &URLService{
-		log:     log.Named("URLService"),
-		config:  config,
-		backup:  backup,
-		urlRepo: urlRepo,
+func NewURLService(
+	config *config.Config,
+	log *logger.Logger,
+	pool *taskmanager.WorkerPool,
+	backup backup.IBackupService,
+	urlRepo interfaces.IURLRepository,
+) *URLService {
+	service := &URLService{
+		log:      log.Named("URLService"),
+		config:   config,
+		backup:   backup,
+		urlRepo:  urlRepo,
+		taskPool: pool,
 	}
+	pool.RegisterHandler("delete_urls_task", service.ProcessDeleteURLsTask)
+	return service
 }
 
 func (s *URLService) LoadData(ctx context.Context) error {
@@ -68,8 +80,65 @@ func (s *URLService) SaveData(ctx context.Context) error {
 	return nil
 }
 
+func (s *URLService) ProcessDeleteURLsTask(ctx context.Context, task taskmanager.Task) error {
+	deleteTask, ok := task.(taskmanager.DeleteTask)
+	if !ok {
+		return fmt.Errorf("invalid task type: expected DeleteTask")
+	}
+	s.log.Infof("Starting delete task for userID=%s with %d URLs", deleteTask.UserID, len(deleteTask.URLs))
+
+	const batchSize = 10
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(deleteTask.URLs)/batchSize+1)
+	successChan := make(chan string, len(deleteTask.URLs)/batchSize+1)
+	for i := 0; i < len(deleteTask.URLs); i += batchSize {
+		end := i + batchSize
+		if end > len(deleteTask.URLs) {
+			end = len(deleteTask.URLs)
+		}
+		batch := deleteTask.URLs[i:end]
+		s.log.Infof("Processing batch for userID=%s: %v", deleteTask.UserID, batch)
+
+		wg.Add(1)
+		go func(batch []string) {
+			defer wg.Done()
+			err := s.urlRepo.DeleteListByUserIDAndShortIDs(ctx, deleteTask.UserID, batch)
+			if err != nil {
+				errChan <- fmt.Errorf("error deleting batch for userID=%s: %v", deleteTask.UserID, err)
+			} else {
+				successChan <- fmt.Sprintf("batch deleted for userID=%s: %v", deleteTask.UserID, batch)
+			}
+		}(batch)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+		close(successChan)
+	}()
+
+	for {
+		select {
+		case err, ok := <-errChan:
+			if ok && err != nil {
+				s.log.Errorf("Error in delete task for userID=%s: %v", deleteTask.UserID, err)
+				return err
+			}
+		case success, ok := <-successChan:
+			if ok {
+				s.log.Infof("Success: %s", success)
+			}
+		}
+		if len(errChan) == 0 && len(successChan) == 0 {
+			break
+		}
+	}
+	s.log.Infof("Completed delete task for userID=%s", deleteTask.UserID)
+	return nil
+}
+
 // ShortenURL shortens a given URL and returns the short version
-func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
+func (s *URLService) Shorten(ctx context.Context, userID string, url string) (string, error) {
 	s.log.Infof("Attempting to shorten URL: %s", url)
 	_, err := utils.ValidateURL(url)
 	if err != nil {
@@ -77,10 +146,10 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	generateID := utils.Generate(MaxIDLength)
-	// Создаем объект URL модели
 	modelURL := model.URL{
 		ShortID:     generateID,
 		OriginalURL: url,
+		UserID:      userID,
 	}
 	newURL, err := s.urlRepo.Insert(ctx, &modelURL)
 	if err != nil {
@@ -97,7 +166,7 @@ func (s *URLService) Shorten(ctx context.Context, url string) (string, error) {
 }
 
 // ShortenURL shortens a given URL and returns the short version
-func (s *URLService) ShortenList(ctx context.Context, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
+func (s *URLService) ShortenList(ctx context.Context, userID string, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
 	resultData := make([]dto.BatchShortenResponse, 0, len(data))
 	insertData := make([]*model.URL, 0, len(data))
 	for _, dataInfo := range data {
@@ -109,6 +178,7 @@ func (s *URLService) ShortenList(ctx context.Context, data dto.BatchShortenReque
 		modelURL := model.URL{
 			ShortID:     utils.Generate(MaxIDLength),
 			OriginalURL: dataInfo.OriginalURL,
+			UserID:      userID,
 		}
 		insertData = append(insertData, &modelURL)
 		resultData = append(resultData, dto.BatchShortenResponse{
@@ -142,6 +212,98 @@ func (s *URLService) GetOriginal(ctx context.Context, id string) (string, error)
 		s.log.Errorf("URL not found for ID %s", id)
 		return "", errors.New("URL not found")
 	}
+	if url.DeletedFlag {
+		s.log.Errorf("URL is deleted for ID %s", id)
+		return "", errors.New("URL is deleted")
+	}
 	s.log.Infof("Found URL for ID %s: %s", id, url.OriginalURL)
 	return url.OriginalURL, nil
 }
+
+func (s *URLService) GetUserURLs(ctx context.Context, userID string) (dto.GetUserURLsResponseDTO, error) {
+	urls, err := s.urlRepo.FindListByUserID(ctx, userID)
+	if err != nil {
+		s.log.Errorf("Error getting URLs for user ID %s: %v", userID, err)
+		return nil, err
+	}
+	if len(urls) == 0 {
+		s.log.Errorf("URL not found for user ID %s", userID)
+		return dto.GetUserURLsResponseDTO{}, nil
+	}
+	var responseDTO dto.GetUserURLsResponseDTO
+	for _, url := range urls {
+		responseDTO = append(responseDTO, dto.GetUserURLsResponse{
+			ShortURL:    fmt.Sprintf("%s/%s", s.config.BaseURL, url.ShortID),
+			OriginalURL: url.OriginalURL,
+		})
+	}
+	return responseDTO, nil
+}
+
+func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+	task := taskmanager.DeleteTask{
+		UserID: userID,
+		URLs:   urls,
+	}
+	err := s.taskPool.Enqueue(ctx, task)
+	if err != nil {
+		s.log.Errorf("Failed to enqueue task: %v", err)
+	}
+
+	s.log.Infof("Starting delete task for userID=%s with %d URLs", task.UserID, len(task.URLs))
+	return nil
+}
+
+// const batchSize = 10
+// var wg sync.WaitGroup
+// errChan := make(chan error, len(urls)/batchSize+1)
+// successChan := make(chan string, len(urls)/batchSize+1)
+// for i := 0; i < len(urls); i += batchSize {
+// 	end := i + batchSize
+// 	if end > len(urls) {
+// 		end = len(urls)
+// 	}
+// 	batch := urls[i:end]
+// 	s.log.Infof("Processing batch for userID=%s: %v", userID, batch)
+
+// 	wg.Add(1)
+// 	go func(batch []string) {
+// 		defer wg.Done()
+// 		err := s.urlRepo.DeleteListByUserIDAndShortIDs(ctx, userID, batch)
+// 		if err != nil {
+// 			errChan <- fmt.Errorf("Error deleting batch for userID=%s: %v", userID, err)
+// 		} else {
+// 			successChan <- fmt.Sprintf("Batch deleted for userID=%s: %v", userID, batch)
+// 		}
+// 	}(batch)
+// }
+
+// go func() {
+// 	wg.Wait()
+// 	close(errChan)
+// 	close(successChan)
+// }()
+
+// for {
+// 	select {
+// 	case err, ok := <-errChan:
+// 		if ok && err != nil {
+// 			s.log.Errorf("Error in delete task for userID=%s: %v", userID, err)
+// 			return err
+// 		}
+// 	case success, ok := <-successChan:
+// 		if ok {
+// 			s.log.Infof("Success: %s", success)
+// 		}
+// 	}
+// 	if len(errChan) == 0 && len(successChan) == 0 {
+// 		break
+// 	}
+// }
+// s.log.Infof("Completed delete task for userID=%s", userID)
+
+// return nil
+// }
