@@ -40,3 +40,5 @@ type GetUserURLsResponse struct {
 }
 
 type GetUserURLsResponseDTO []GetUserURLsResponse
+
+type DeleteURLRequestDTO []string

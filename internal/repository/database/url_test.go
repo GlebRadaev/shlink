@@ -10,7 +10,7 @@ import (
 
 	"github.com/GlebRadaev/shlink/internal/interfaces"
 	"github.com/GlebRadaev/shlink/internal/model"
-	"github.com/jackc/pgx/v5"
+	"github.com/lib/pq"
 
 	"github.com/GlebRadaev/shlink/internal/repository/database"
 	"github.com/pashagolub/pgxmock/v4"
@@ -190,10 +190,10 @@ func TestURLRepository_FindByID(t *testing.T) {
 			mockSetup: func() {
 				fixedTime := time.Now()
 
-				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE short_id = $1`)).
+				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at, is_deleted FROM urls WHERE short_id = $1`)).
 					WithArgs("12345678").
-					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at"}).
-						AddRow(1, "12345678", "http://example.com", "user123", fixedTime))
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at", "is_deleted"}).
+						AddRow(1, "12345678", "http://example.com", "user123", fixedTime, false))
 			},
 			expectedError: nil,
 			expectedURL: &model.URL{
@@ -207,11 +207,22 @@ func TestURLRepository_FindByID(t *testing.T) {
 			name:    "FindByID Error - No Rows",
 			shortID: "nonexistentID",
 			mockSetup: func() {
-				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at FROM urls WHERE short_id = $1`)).
+				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at, is_deleted FROM urls WHERE short_id = $1`)).
 					WithArgs("nonexistentID").
-					WillReturnError(pgx.ErrNoRows)
+					WillReturnRows(pgxmock.NewRows([]string{"id", "short_id", "original_url", "user_id", "created_at", "is_deleted"}))
 			},
-			expectedError: pgx.ErrNoRows,
+			expectedError: nil,
+			expectedURL:   nil,
+		},
+		{
+			name:    "FindByID Error - DB Error",
+			shortID: "someID",
+			mockSetup: func() {
+				mockDB.ExpectQuery(regexp.QuoteMeta(`SELECT id, short_id, original_url, user_id, created_at, is_deleted FROM urls WHERE short_id = $1`)).
+					WithArgs("someID").
+					WillReturnError(fmt.Errorf("database connection error"))
+			},
+			expectedError: fmt.Errorf("database connection error"),
 			expectedURL:   nil,
 		},
 	}
@@ -227,9 +238,13 @@ func TestURLRepository_FindByID(t *testing.T) {
 				assert.Equal(t, tt.expectedError, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedURL.ShortID, foundURL.ShortID)
-				assert.Equal(t, tt.expectedURL.OriginalURL, foundURL.OriginalURL)
-				assert.WithinDuration(t, foundURL.CreatedAt, time.Now(), 1*time.Second)
+				if tt.expectedURL == nil {
+					assert.Nil(t, foundURL)
+				} else {
+					assert.Equal(t, tt.expectedURL.ShortID, foundURL.ShortID)
+					assert.Equal(t, tt.expectedURL.OriginalURL, foundURL.OriginalURL)
+					assert.WithinDuration(t, foundURL.CreatedAt, time.Now(), 1*time.Second)
+				}
 			}
 		})
 	}
@@ -407,6 +422,83 @@ func TestURLRepository_ListByUserID(t *testing.T) {
 					assert.Equal(t, tt.expectedURLs[i].OriginalURL, url.OriginalURL)
 					assert.Equal(t, tt.expectedURLs[i].UserID, url.UserID)
 				}
+			}
+		})
+	}
+}
+func TestURLRepository_DeleteListByUserIDAndShortIDs(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		mockSetup     func()
+		userID        string
+		shortIDs      []string
+		expectedError string
+	}{
+		{
+			name: "Successful Deletion",
+			mockSetup: func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectExec(`UPDATE urls SET is_deleted = true WHERE user_id = \$1 AND short_id = ANY\(\$2\)`).
+					WithArgs("user123", pq.Array([]string{"short1", "short2"})).
+					WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+				mockDB.ExpectCommit()
+			},
+			userID:        "user123",
+			shortIDs:      []string{"short1", "short2"},
+			expectedError: "",
+		},
+		{
+			name: "InsertList Transaction Error",
+			mockSetup: func() {
+				mockDB.ExpectBegin().
+					WillReturnError(fmt.Errorf("failed to begin transaction"))
+			},
+			userID:        "user123",
+			shortIDs:      []string{"short1", "short2"},
+			expectedError: "failed to begin transaction: failed to begin transaction",
+		},
+		{
+			name: "SQL Execution Error",
+			mockSetup: func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectExec(`UPDATE urls SET is_deleted = true WHERE user_id = \$1 AND short_id = ANY\(\$2\)`).
+					WithArgs("user123", pq.Array([]string{"short1", "short2"})).
+					WillReturnError(fmt.Errorf("SQL execution error"))
+				mockDB.ExpectRollback()
+			},
+			userID:        "user123",
+			shortIDs:      []string{"short1", "short2"},
+			expectedError: "failed to delete short urls for user: SQL execution error",
+		},
+		{
+			name: "Commit Transaction Error",
+			mockSetup: func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectExec(`UPDATE urls SET is_deleted = true WHERE user_id = \$1 AND short_id = ANY\(\$2\)`).
+					WithArgs("user123", pq.Array([]string{"short1", "short2"})).
+					WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+				mockDB.ExpectCommit().WillReturnError(fmt.Errorf("commit transaction error"))
+				mockDB.ExpectRollback()
+			},
+			userID:        "user123",
+			shortIDs:      []string{"short1", "short2"},
+			expectedError: "failed to commit transaction: commit transaction error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+			err := repo.DeleteListByUserIDAndShortIDs(ctx, tt.userID, tt.shortIDs)
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

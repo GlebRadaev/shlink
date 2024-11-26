@@ -9,6 +9,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/service/backup"
 	"github.com/GlebRadaev/shlink/internal/service/health"
 	"github.com/GlebRadaev/shlink/internal/service/url"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 )
 
 type Services struct {
@@ -20,11 +21,11 @@ type Services struct {
 type URLService = url.URLService
 type HealthService = health.HealthService
 
-func NewServiceFactory(ctx context.Context, cfg *config.Config, log *logger.Logger, repos *repository.Repositories) *Services {
+func NewServiceFactory(ctx context.Context, cfg *config.Config, log *logger.Logger, pool *taskmanager.WorkerPool, repos *repository.Repositories) *Services {
 	logger := log.Named("ServiceFactory")
 	backupService := backup.NewBackupService(cfg.FileStoragePath)
 	logger.Info("Backup service up.")
-	urlService := url.NewURLService(cfg, log, backupService, repos.URLRepo)
+	urlService := url.NewURLService(cfg, log, pool, backupService, repos.URLRepo)
 	logger.Info("URL service up.")
 	healthService := health.NewHealthService(cfg, log, repos.URLRepo)
 	logger.Info("Health service up.")

@@ -14,6 +14,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/logger"
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -28,8 +29,9 @@ func TestRoutes(t *testing.T) {
 	cfg, _ := config.ParseAndLoadConfig()
 	logger, _ := logger.NewLogger("info")
 
+	pool := taskmanager.NewWorkerPool(ctx, 10, 1)
 	repositories := repository.NewRepositoryFactory(ctx, cfg, logger)
-	services := service.NewServiceFactory(ctx, cfg, logger, repositories)
+	services := service.NewServiceFactory(ctx, cfg, logger, pool, repositories)
 
 	healthHandlers := handlers.NewHealthHandlers(services.HealthService)
 	urlHandlers := handlers.NewURLHandlers(services.URLService)

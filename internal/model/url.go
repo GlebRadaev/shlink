@@ -8,4 +8,5 @@ type URL struct {
 	OriginalURL string    `db:"original_url"`
 	UserID      string    `db:"user_id"`
 	CreatedAt   time.Time `db:"created_at"`
+	DeletedFlag bool      `db:"is_deleted"`
 }

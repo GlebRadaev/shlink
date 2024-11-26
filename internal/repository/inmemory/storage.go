@@ -119,3 +119,18 @@ func (s *MemoryStorage) Ping(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (s *MemoryStorage) DeleteListByUserIDAndShortIDs(ctx context.Context, userID string, shortIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for _, shortID := range shortIDs {
+		if url, exists := s.data[shortID]; exists && url.UserID == userID {
+			// url.IsDeleted = true
+			s.data[shortID] = url
+		}
+	}
+	return nil
+}

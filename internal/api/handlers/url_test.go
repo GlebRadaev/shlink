@@ -17,6 +17,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/GlebRadaev/shlink/internal/service/url"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -37,8 +38,9 @@ func setupURL(ctx context.Context) (*url.URLService, *config.Config, error) {
 		}
 	}
 	log, _ := logger.NewLogger("info")
+	pool := taskmanager.NewWorkerPool(ctx, 10, 1)
 	repositories := repository.NewRepositoryFactory(ctx, cfgTest, log)
-	services := service.NewServiceFactory(ctx, cfgTest, log, repositories)
+	services := service.NewServiceFactory(ctx, cfgTest, log, pool, repositories)
 	return services.URLService, cfgTest, nil
 }
 
