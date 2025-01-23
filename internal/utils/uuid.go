@@ -1,10 +1,12 @@
 package utils
 
 import (
-	"fmt"
-	"time"
+	"crypto/rand"
+	"encoding/hex"
 )
 
 func GenerateUUID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	bytes := make([]byte, 16)
+	_, _ = rand.Read(bytes)
+	return hex.EncodeToString(bytes)
 }

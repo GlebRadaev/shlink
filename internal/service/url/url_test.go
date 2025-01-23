@@ -3,6 +3,7 @@ package url_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -13,35 +14,39 @@ import (
 	"github.com/GlebRadaev/shlink/internal/repository"
 	"github.com/GlebRadaev/shlink/internal/service/backup"
 	"github.com/GlebRadaev/shlink/internal/service/url"
+	"github.com/GlebRadaev/shlink/internal/taskmanager"
 	"github.com/GlebRadaev/shlink/internal/utils"
 	"go.uber.org/mock/gomock"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var cfg *config.Config
 
-func setup(t *testing.T) (*repository.MockIURLRepository, *url.URLService, *backup.MockIBackupService, *config.Config, error) {
+func setup(t *testing.T, ctx context.Context) (*repository.MockIURLRepository, *url.URLService, *backup.MockIBackupService, *config.Config, *taskmanager.WorkerPool, error) {
 	if cfg == nil {
 		var err error
 		cfg, err = config.ParseAndLoadConfig()
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 	}
 	log, _ := logger.NewLogger("info")
 	ctrl := gomock.NewController(t)
+	pool := taskmanager.NewWorkerPool(ctx, 10, 1)
+	defer pool.Shutdown()
 	mockURLRepo := repository.NewMockIURLRepository(ctrl)
 	mockBackupService := backup.NewMockIBackupService(ctrl)
-	urlService := url.NewURLService(cfg, log, mockBackupService, mockURLRepo)
+	urlService := url.NewURLService(cfg, log, pool, mockBackupService, mockURLRepo)
 	defer ctrl.Finish()
 
-	return mockURLRepo, urlService, mockBackupService, cfg, nil
+	return mockURLRepo, urlService, mockBackupService, cfg, pool, nil
 }
 
 func TestURLService_LoadData(t *testing.T) {
 	ctx := context.Background()
-	mockURLRepo, urlService, mockBackupService, _, err := setup(t)
+	mockURLRepo, urlService, mockBackupService, _, _, err := setup(t, ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -84,7 +89,7 @@ func TestURLService_LoadData(t *testing.T) {
 
 func TestURLService_SaveData(t *testing.T) {
 	ctx := context.Background()
-	mockURLRepo, urlService, mockBackupService, _, err := setup(t)
+	mockURLRepo, urlService, mockBackupService, _, _, err := setup(t, ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -132,9 +137,71 @@ func TestURLService_SaveData(t *testing.T) {
 	}
 }
 
+func TestURLService_processDeleteURLsTask(t *testing.T) {
+	ctx := context.Background()
+	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	testCases := []struct {
+		name        string
+		task        taskmanager.Task
+		setupMock   func(mockURLRepo *repository.MockIURLRepository)
+		expectedErr string
+	}{
+		{
+			name: "successfully processes delete URLs task",
+			task: taskmanager.DeleteTask{
+				UserID: "user-123",
+				URLs:   []string{"short1", "short2", "short3"},
+			},
+			// mockSetup: func(repo *mocks.IURLRepository) {
+			// 	repo.On("DeleteListByUserIDAndShortIDs", mock.Anything, "user-123", mock.Anything).Return(nil)
+			// },
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			},
+			expectedErr: "",
+		},
+		// {
+		// 	name: "invalid task type error",
+		// 	task: InvalidTask{},
+		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+		// 	},
+		// 	expectedErr: "invalid task type",
+		// },
+		{
+			name: "batch deletion error",
+			task: taskmanager.DeleteTask{
+				UserID: "user-123",
+				URLs:   []string{"short1", "short2"},
+			},
+
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error"))
+			},
+			expectedErr: "db error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setupMock(mockURLRepo)
+			err := urlService.ProcessDeleteURLsTask(ctx, tc.task)
+			if tc.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestURLService_Shorten(t *testing.T) {
 	ctx := context.Background()
-	mockURLRepo, urlService, _, cfg, err := setup(t)
+	mockURLRepo, urlService, _, cfg, _, err := setup(t, ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -147,24 +214,6 @@ func TestURLService_Shorten(t *testing.T) {
 		args      args
 		wantErr   error
 	}{
-		// {
-		// 	name: "valid http URL",
-		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-		// 		mockURLRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
-		// 		mockURLRepo.EXPECT().FindByID(ctx, "testID12").Return(&model.URL{ShortID: "testID12", OriginalURL: "http://example3.com"}, nil)
-		// 	},
-		// 	args:    args{url: "http://example3.com"},
-		// 	wantErr: nil,
-		// },
-		// {
-		// 	name: "valid https URL",
-		// 	args: args{url: "https://example4.com"},
-		// 	setupMock: func(mockURLRepo *repository.MockIURLRepository) {
-		// 		mockURLRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(&model.URL{ShortID: "testID12", OriginalURL: "https://example4.com"}, nil)
-		// 		mockURLRepo.EXPECT().FindByID(ctx, "testID12").Return(&model.URL{ShortID: "testID12", OriginalURL: "https://example4.com"}, nil)
-		// 	},
-		// 	wantErr: nil,
-		// },
 		{
 			name: "error inserting URL into memory repository",
 			args: args{url: "https://example.com"},
@@ -194,7 +243,7 @@ func TestURLService_Shorten(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock(mockURLRepo)
-			got, err := urlService.Shorten(ctx, tt.args.url)
+			got, err := urlService.Shorten(ctx, "user123", tt.args.url)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 			} else {
@@ -211,7 +260,7 @@ func TestURLService_Shorten(t *testing.T) {
 
 func TestURLService_ShortenList(t *testing.T) {
 	ctx := context.Background()
-	mockURLRepo, urlService, _, cfg, err := setup(t)
+	mockURLRepo, urlService, _, cfg, _, err := setup(t, ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -268,7 +317,7 @@ func TestURLService_ShortenList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock(mockURLRepo)
-			got, err := urlService.ShortenList(ctx, tt.data)
+			got, err := urlService.ShortenList(ctx, "user123", tt.data)
 
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
@@ -291,7 +340,7 @@ func TestURLService_ShortenList(t *testing.T) {
 
 func TestURLService_GetOriginal(t *testing.T) {
 	ctx := context.Background()
-	mockURLRepo, urlService, _, _, err := setup(t)
+	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
 	if err != nil {
 		t.Fatalf("Failed to set up test: %v", err)
 	}
@@ -360,3 +409,119 @@ func TestURLService_GetOriginal(t *testing.T) {
 		})
 	}
 }
+
+func TestURLService_GetUserURLs(t *testing.T) {
+	ctx := context.Background()
+	mockURLRepo, urlService, _, cfg, _, err := setup(t, ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		userID    string
+		setupMock func(mockURLRepo *repository.MockIURLRepository)
+		want      dto.GetUserURLsResponseDTO
+		wantErr   error
+	}{
+		{
+			name:   "success",
+			userID: "testUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("testUser")).Return([]*model.URL{
+					{ShortID: "short1", OriginalURL: "http://example1.com", UserID: "testUser"},
+					{ShortID: "short2", OriginalURL: "https://example2.com", UserID: "testUser"},
+				}, nil)
+			},
+			want: dto.GetUserURLsResponseDTO{
+				{ShortURL: fmt.Sprintf("%s/short1", cfg.BaseURL), OriginalURL: "http://example1.com"},
+				{ShortURL: fmt.Sprintf("%s/short2", cfg.BaseURL), OriginalURL: "https://example2.com"},
+			},
+			wantErr: nil,
+		},
+		{
+			name:   "not found",
+			userID: "notFoundUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("notFoundUser")).Return([]*model.URL{}, nil)
+			},
+			want:    dto.GetUserURLsResponseDTO{},
+			wantErr: nil,
+		},
+		{
+			name:   "repository error",
+			userID: "errorUser",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().FindListByUserID(gomock.Any(), gomock.Eq("errorUser")).Return(nil, errors.New("repository error"))
+			},
+			want:    nil,
+			wantErr: errors.New("repository error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock(mockURLRepo)
+			got, err := urlService.GetUserURLs(ctx, tt.userID)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
+
+// func TestDeleteUserURLs_EmptyURLs(t *testing.T) {
+// 	ctx := context.Background()
+// 	_, urlService, _, _, _, err := setup(t, ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to set up test: %v", err)
+// 	}
+// 	urls := []string{}
+// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
+// 	assert.NoError(t, err)
+// }
+
+// func TestDeleteUserURLs_ErrorOnDelete(t *testing.T) {
+// 	ctx := context.Background()
+// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to set up test: %v", err)
+// 	}
+// 	urls := []string{"url1", "url2"}
+// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls).Return(errors.New("delete error"))
+
+// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
+// 	assert.Error(t, err)
+// 	assert.Equal(t, "Error deleting batch for userID=userID: delete error", err.Error())
+
+// }
+
+// func TestDeleteUserURLs_SuccessfulDelete(t *testing.T) {
+// 	ctx := context.Background()
+// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to set up test: %v", err)
+// 	}
+// 	urls := []string{"url1", "url2"}
+// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls).Return(nil)
+// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
+// 	assert.NoError(t, err)
+
+// }
+
+// func TestDeleteUserURLs_SuccessfulBatchProcessing(t *testing.T) {
+// 	ctx := context.Background()
+// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
+// 	if err != nil {
+// 		t.Fatalf("Failed to set up test: %v", err)
+// 	}
+// 	urls := []string{"url1", "url2", "url3", "url4", "url5", "url6", "url7", "url8", "url9", "url10", "url11"}
+// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls[:10]).Return(nil)
+// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls[10:]).Return(nil)
+// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
+// 	assert.NoError(t, err)
+// }
