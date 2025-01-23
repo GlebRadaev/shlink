@@ -161,3 +161,38 @@ func TestCompressReader_Read(t *testing.T) {
 	assert.Equal(t, len(originalData), n)
 	assert.Equal(t, originalData, string(buf))
 }
+
+func BenchmarkCompressMiddleware(b *testing.B) {
+	handler := http.HandlerFunc(okHandler)
+	data := strings.Repeat("Hello, Benchmark!", 1000)
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(data))
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	for i := 0; i < b.N; i++ {
+		rec := httptest.NewRecorder()
+		middleware := CompressMiddleware(handler)
+		middleware.ServeHTTP(rec, req)
+		res := rec.Result()
+		_, err := io.ReadAll(res.Body)
+		if err != nil {
+			b.Fatalf("failed to read response body: %v", err)
+		}
+		res.Body.Close()
+	}
+}
+
+func BenchmarkCompressReader(b *testing.B) {
+	data := strings.Repeat("Hello, Benchmark!", 1000)
+	compressed := gzipCompress(data)
+
+	for i := 0; i < b.N; i++ {
+		zr, err := gzip.NewReader(bytes.NewReader(compressed.Bytes()))
+		if err != nil {
+			b.Fatalf("Ошибка инициализации gzip.Reader: %v", err)
+		}
+		buf := make([]byte, len(data))
+		_, _ = io.ReadFull(zr, buf)
+		zr.Close()
+	}
+}
