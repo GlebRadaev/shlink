@@ -1,3 +1,6 @@
+// Package database implements the database logic for managing URL data.
+// It provides functionality for inserting, querying, updating, and deleting URL records in a PostgreSQL database.
+// The repository interacts with the database through the DBPool interface, typically using pgx package for PostgreSQL operations.
 package database
 
 import (
@@ -11,14 +14,18 @@ import (
 	"github.com/lib/pq"
 )
 
+// URLRepository represents a repository for URL data in the database.
 type URLRepository struct {
 	db interfaces.DBPool
 }
 
+// NewURLRepository creates a new instance of URLRepository with the provided DBPool.
 func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 	return &URLRepository{db: db}
 }
 
+// Insert inserts a new URL into the database, or updates the existing one based on the original URL.
+// If the URL already exists, it updates the short ID. Returns the inserted or updated URL.
 func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
 	query := `
 		INSERT INTO urls (short_id, original_url, user_id) 
@@ -34,6 +41,7 @@ func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL,
 	return url, nil
 }
 
+// InsertList inserts a list of URLs into the database. It uses a transaction to insert URLs one by one and commits the transaction.
 func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*model.URL, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -57,6 +65,7 @@ func (r *URLRepository) InsertList(ctx context.Context, urls []*model.URL) ([]*m
 	return result, nil
 }
 
+// FindByID finds a URL by its short ID. Returns the URL if found, otherwise returns nil.
 func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.URL, error) {
 	query := `
 		SELECT id, short_id, original_url, user_id, created_at, is_deleted FROM urls 
@@ -72,6 +81,7 @@ func (r *URLRepository) FindByID(ctx context.Context, shortID string) (*model.UR
 	return url, nil
 }
 
+// FindListByUserID finds all URLs associated with a specific user. It returns a list of URLs.
 func (r *URLRepository) FindListByUserID(ctx context.Context, userID string) ([]*model.URL, error) {
 	query := `
 		SELECT id, short_id, original_url, user_id, created_at FROM urls 
@@ -93,6 +103,8 @@ func (r *URLRepository) FindListByUserID(ctx context.Context, userID string) ([]
 	}
 	return urls, nil
 }
+
+// List retrieves all URLs in the database. It returns a list of all URLs stored.
 func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	query := `
 		SELECT id, short_id, original_url, created_at, user_id 
@@ -117,6 +129,7 @@ func (r *URLRepository) List(ctx context.Context) ([]*model.URL, error) {
 	return urls, nil
 }
 
+// Ping checks if the database is reachable by executing a simple query.
 func (r *URLRepository) Ping(ctx context.Context) error {
 	query := `SELECT 1`
 	var result int
@@ -127,6 +140,8 @@ func (r *URLRepository) Ping(ctx context.Context) error {
 	return nil
 }
 
+// DeleteListByUserIDAndShortIDs soft deletes URLs by marking them as deleted based on userID and shortID list.
+// It performs the deletion inside a transaction to ensure consistency.
 func (r *URLRepository) DeleteListByUserIDAndShortIDs(ctx context.Context, userID string, shortIDs []string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

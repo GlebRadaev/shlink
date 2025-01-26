@@ -7,13 +7,15 @@ import (
 	"github.com/caarlos0/env/v6"
 )
 
+// Config holds the configuration settings for the application.
 type Config struct {
-	ServerAddress   string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
-	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"`
-	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""` // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
+	ServerAddress   string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`   // HTTP server address
+	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`  // Base URL for shortened links
+	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"` // Path to the storage file
+	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""`                   // Database connection string // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
 }
 
+// ParseAndLoadConfig reads configuration from environment variables and command-line flags.
 func ParseAndLoadConfig() (*Config, error) {
 	cfg := &Config{}
 

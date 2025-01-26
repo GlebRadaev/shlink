@@ -1,3 +1,14 @@
+// Package repository provides a collection of repositories responsible for managing URL data.
+// It is responsible for abstracting data access, with support for both in-memory storage
+// and database storage using PostgreSQL.
+//
+// The package includes functionality for establishing database connections, applying migrations,
+// and choosing the appropriate repository implementation based on the configuration, either
+// using in-memory storage or a PostgreSQL database.
+//
+// Repositories:
+//   - URLRepo: The interface responsible for interacting with URL data. It could be backed by either
+//     an in-memory repository or a PostgreSQL database, depending on the configuration provided.
 package repository
 
 import (
@@ -16,10 +27,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// Repositories represents a collection of repositories for managing URL data.
 type Repositories struct {
-	URLRepo interfaces.IURLRepository
+	URLRepo interfaces.IURLRepository // Repository for managing URL data.
 }
 
+// NewRepositoryFactory creates a new instance of Repositories based on configuration and logger.
 func NewRepositoryFactory(ctx context.Context, cfg *config.Config, log *logger.Logger) *Repositories {
 	var urlRepo interfaces.IURLRepository
 	logger := log.Named("RepositoryFactory")
@@ -43,6 +56,7 @@ func NewRepositoryFactory(ctx context.Context, cfg *config.Config, log *logger.L
 	return &Repositories{URLRepo: urlRepo}
 }
 
+// Migrate runs database migrations using Goose on the provided DSN.
 func Migrate(ctx context.Context, dsn string) error {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

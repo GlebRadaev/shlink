@@ -1,3 +1,6 @@
+// Package backup provides functionality for managing backups of URL data.
+// It defines an interface `IBackupService` and implements a service `BackupService`
+// that can load and save data to a backup file.
 package backup
 
 import (
@@ -10,19 +13,29 @@ import (
 	"github.com/GlebRadaev/shlink/internal/utils"
 )
 
+// IBackupService defines the methods for loading and saving backup data.
 type IBackupService interface {
+	// LoadData loads backup data from a file.
+	// It returns a map where the key is the short URL and the value is the original URL.
 	LoadData() (map[string]string, error)
+
+	// SaveData saves a map of short URLs and original URLs to a backup file.
+	// It will overwrite existing data in the backup file.
 	SaveData(data map[string]string) error
 }
 
+// BackupService provides the implementation of IBackupService.
 type BackupService struct {
+	// filename is the path to the backup file.
 	filename string
 }
 
+// NewBackupService creates a new instance of BackupService.
 func NewBackupService(filename string) *BackupService {
 	return &BackupService{filename: filename}
 }
 
+// LoadData loads backup data from the backup file.
 func (b *BackupService) LoadData() (map[string]string, error) {
 	file, err := os.Open(b.filename)
 	if err != nil {
@@ -48,6 +61,7 @@ func (b *BackupService) LoadData() (map[string]string, error) {
 	return data, nil
 }
 
+// SaveData saves a map of short URLs to original URLs in the backup file.
 func (b *BackupService) SaveData(data map[string]string) error {
 	existingData, err := b.LoadData()
 	if err != nil {

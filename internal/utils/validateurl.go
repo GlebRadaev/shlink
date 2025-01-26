@@ -1,3 +1,5 @@
+// Package utils provides various utility functions, including URL validation and
+// other common operations.
 package utils
 
 import (
@@ -5,6 +7,7 @@ import (
 	"net/url"
 )
 
+// ValidateURL validates the format and scheme of the provided URL string.
 func ValidateURL(urlStr string) (*url.URL, error) {
 	uri, err := url.ParseRequestURI(urlStr)
 	if err != nil {
