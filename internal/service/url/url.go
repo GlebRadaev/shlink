@@ -1,3 +1,4 @@
+// Package url provides services for URL shortening and management.
 package url
 
 import (
@@ -18,20 +19,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// MaxIDLength defines the maximum length for a shortened URL ID.
 const (
 	MaxIDLength = 8
 )
 
 // URLService handles the business logic for shortening URLs
+// and interacts with repositories, backups, and tasks related to URL management.
 type URLService struct {
-	log      *zap.SugaredLogger
-	config   *config.Config
-	taskPool *taskmanager.WorkerPool
-	backup   backup.IBackupService
-	urlRepo  interfaces.IURLRepository
+	log      *zap.SugaredLogger        // Logger for the service
+	config   *config.Config            // Configuration settings for the service
+	taskPool *taskmanager.WorkerPool   // Worker pool for handling tasks
+	backup   backup.IBackupService     // Backup service for saving and loading URL data
+	urlRepo  interfaces.IURLRepository // Repository for interacting with stored URLs
 }
 
-// NewURLService creates a new URLService
+// NewURLService creates a new instance of URLService with the specified configurations
+// and registers the task handler for deleting URLs.
 func NewURLService(
 	config *config.Config,
 	log *logger.Logger,
@@ -50,6 +54,7 @@ func NewURLService(
 	return service
 }
 
+// LoadData loads previously backed-up URL data and inserts them into the repository.
 func (s *URLService) LoadData(ctx context.Context) error {
 	data, err := s.backup.LoadData()
 	if err != nil {
@@ -65,6 +70,7 @@ func (s *URLService) LoadData(ctx context.Context) error {
 	return nil
 }
 
+// SaveData retrieves all URLs and backs them up to persistent storage.
 func (s *URLService) SaveData(ctx context.Context) error {
 	urls, err := s.urlRepo.List(ctx)
 	if err != nil {
@@ -80,6 +86,7 @@ func (s *URLService) SaveData(ctx context.Context) error {
 	return nil
 }
 
+// ProcessDeleteURLsTask processes a task that deletes a list of URLs for a specific user.
 func (s *URLService) ProcessDeleteURLsTask(ctx context.Context, task taskmanager.Task) error {
 	deleteTask, ok := task.(taskmanager.DeleteTask)
 	if !ok {
@@ -137,7 +144,7 @@ func (s *URLService) ProcessDeleteURLsTask(ctx context.Context, task taskmanager
 	return nil
 }
 
-// ShortenURL shortens a given URL and returns the short version
+// Shorten shortens a given URL and returns the corresponding short version.
 func (s *URLService) Shorten(ctx context.Context, userID string, url string) (string, error) {
 	s.log.Infof("Attempting to shorten URL: %s", url)
 	_, err := utils.ValidateURL(url)
@@ -165,7 +172,7 @@ func (s *URLService) Shorten(ctx context.Context, userID string, url string) (st
 	return shortID, nil
 }
 
-// ShortenURL shortens a given URL and returns the short version
+// ShortenList shortens a batch of URLs and returns the corresponding short versions.
 func (s *URLService) ShortenList(ctx context.Context, userID string, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error) {
 	resultData := make([]dto.BatchShortenResponse, 0, len(data))
 	insertData := make([]*model.URL, 0, len(data))
@@ -196,7 +203,7 @@ func (s *URLService) ShortenList(ctx context.Context, userID string, data dto.Ba
 	return resultData, nil
 }
 
-// GetOriginal retrieves the original URL by the short ID
+// GetOriginal retrieves the original URL associated with the given short ID.
 func (s *URLService) GetOriginal(ctx context.Context, id string) (string, error) {
 	s.log.Infof("Retrieving original URL for ID: %s", id)
 	if !utils.IsValidID(id, MaxIDLength) {
@@ -220,6 +227,7 @@ func (s *URLService) GetOriginal(ctx context.Context, id string) (string, error)
 	return url.OriginalURL, nil
 }
 
+// GetUserURLs retrieves all URLs shortened by a user.
 func (s *URLService) GetUserURLs(ctx context.Context, userID string) (dto.GetUserURLsResponseDTO, error) {
 	urls, err := s.urlRepo.FindListByUserID(ctx, userID)
 	if err != nil {
@@ -240,6 +248,7 @@ func (s *URLService) GetUserURLs(ctx context.Context, userID string) (dto.GetUse
 	return responseDTO, nil
 }
 
+// DeleteUserURLs schedules a task to delete multiple URLs for a specific user.
 func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, urls []string) error {
 	if len(urls) == 0 {
 		return nil

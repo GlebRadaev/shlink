@@ -1,3 +1,5 @@
+// Package handlers provides HTTP handlers for URL shortening operations,
+// including creating short links, redirecting to original URLs, and managing user URLs.
 package handlers
 
 import (
@@ -15,17 +17,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// URLHandlers defines the handlers for URL shortening
+// URLHandlers defines the handlers for URL shortening.
 type URLHandlers struct {
+	// urlService is the service that manages URL shortening and retrieval operations.
 	urlService *service.URLService
 }
 
-// NewURLHandlers creates a new instance of URLHandlers
+// NewURLHandlers creates a new instance of URLHandlers.
 func NewURLHandlers(urlService *service.URLService) *URLHandlers {
 	return &URLHandlers{urlService: urlService}
 }
 
-// Shorten handles the request to shorten a URL
+// Shorten handles the request to shorten a URL.
 func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	body, err := io.ReadAll(r.Body)
@@ -55,7 +58,7 @@ func (h *URLHandlers) Shorten(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Redirect handles the request to redirect to the original URL
+// Redirect handles the request to redirect to the original URL.
 func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -73,6 +76,7 @@ func (h *URLHandlers) Redirect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
+// ShortenJSON handles the request to shorten a single URL in JSON format.
 func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
@@ -108,6 +112,7 @@ func (h *URLHandlers) ShortenJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ShortenJSONBatch handles the request to shorten multiple URLs provided in a batch JSON format.
 func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
 	userID, _ := utils.GetOrSetUserIDFromCookie(w, r)
 	if err := utils.ValidateContentType(w, r, "application/json"); err != nil {
@@ -133,6 +138,7 @@ func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetUserURLs retrieves the list of URLs associated with the authenticated user.
 func (h *URLHandlers) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	userID, ok := utils.GetUserIDFromCookie(r)
 	if !ok {
@@ -157,6 +163,7 @@ func (h *URLHandlers) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteUserURLs deletes a list of URLs associated with the authenticated user.
 func (h *URLHandlers) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
 	userID, ok := utils.GetUserIDFromCookie(r)
 	if !ok {

@@ -18,6 +18,7 @@ import (
 	"github.com/GlebRadaev/shlink/internal/taskmanager"
 )
 
+// Application is the main struct that encapsulates the application context, configurations, services, server, and worker pool.
 type Application struct {
 	Ctx        context.Context
 	Config     *config.Config
@@ -27,10 +28,12 @@ type Application struct {
 	WorkerPool *taskmanager.WorkerPool
 }
 
+// NewApplication creates a new instance of Application with the provided context.
 func NewApplication(ctx context.Context) *Application {
 	return &Application{Ctx: ctx}
 }
 
+// Init initializes the application by loading configurations, setting up services, and preparing the server and router.
 func (app *Application) Init() error {
 	var err error
 	app.Config, err = config.ParseAndLoadConfig()
@@ -53,6 +56,7 @@ func (app *Application) Init() error {
 	return nil
 }
 
+// Start launches the HTTP server and listens for incoming requests.
 func (app *Application) Start() error {
 	go func() {
 		logger := app.Logger.Named("Server Initialization")
@@ -68,6 +72,7 @@ func (app *Application) Start() error {
 	return app.Shutdown()
 }
 
+// Shutdown gracefully shuts down the server, saves data, and stops the worker pool.
 func (app *Application) Shutdown() error {
 	logger := app.Logger.Named("Server Shutdown")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -89,6 +94,7 @@ func (app *Application) Shutdown() error {
 	return nil
 }
 
+// SetupRoutes sets up the HTTP routes for the application.
 func (app *Application) SetupRoutes() *chi.Mux {
 	router := chi.NewRouter()
 	middleware.Middleware(router)

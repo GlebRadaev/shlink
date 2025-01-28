@@ -8,16 +8,21 @@ import (
 )
 
 type (
+	// responseData holds information about the response status and size.
 	responseData struct {
-		status int
-		size   int
+		status int // HTTP response status code
+		size   int // Size of the response body
 	}
+
+	// loggingResponseWriter wraps the original ResponseWriter to capture
+	// response status and size for logging purposes.
 	loggingResponseWriter struct {
 		http.ResponseWriter
-		responseData *responseData
+		*responseData
 	}
 )
 
+// RequestMiddleware logs the details of incoming requests and their responses.
 func RequestMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger, _ := logger.NewLogger("info")
@@ -44,12 +49,14 @@ func RequestMiddleware(h http.Handler) http.Handler {
 	})
 }
 
+// Write intercepts the write operation to capture the response body size.
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
 	return size, err
 }
 
+// WriteHeader captures the response status code.
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.ResponseWriter.WriteHeader(statusCode)
 	r.responseData.status = statusCode

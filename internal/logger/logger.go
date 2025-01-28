@@ -8,10 +8,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// Logger wraps zap's SugaredLogger to provide logging functionality with predefined configurations.
 type Logger struct {
 	*zap.SugaredLogger
 }
 
+// NewLogger creates a new Logger instance with the specified logging level.
 func NewLogger(level string) (*Logger, error) {
 	var lvl zapcore.Level
 	if err := lvl.UnmarshalText([]byte(level)); err != nil {
@@ -34,6 +36,7 @@ func NewLogger(level string) (*Logger, error) {
 	return &Logger{zap.New(core).Sugar()}, nil
 }
 
+// Sync flushes any buffered log entries.
 func (l *Logger) Sync() {
 	_ = l.SugaredLogger.Sync()
 }
