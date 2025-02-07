@@ -40,7 +40,7 @@ jobs:
         uses: robinraju/release-downloader@v1.11
         with:
           repository: Yandex-Practicum/go-autotests
-          latest: "v0.11.2"
+          tag: "v0.11.2"
           fileName: "*"
           out-file-path: .tools
           token: ${{ secrets.GITHUB_TOKEN }}
