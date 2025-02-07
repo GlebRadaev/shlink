@@ -7,7 +7,6 @@ on:
       - main
 
 jobs:
-
   branchtest:
     runs-on: ubuntu-latest
 
@@ -41,7 +40,7 @@ jobs:
         uses: robinraju/release-downloader@v1.8
         with:
           repository: Yandex-Practicum/go-autotests
-          latest: true
+          latest: "v0.11.2"
           fileName: "*"
           out-file-path: .tools
           token: ${{ secrets.GITHUB_TOKEN }}
