@@ -140,9 +140,9 @@ func (h *URLHandlers) ShortenJSONBatch(w http.ResponseWriter, r *http.Request) {
 
 // GetUserURLs retrieves the list of URLs associated with the authenticated user.
 func (h *URLHandlers) GetUserURLs(w http.ResponseWriter, r *http.Request) {
-	userID, ok := utils.GetUserIDFromCookie(r)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	userID, err := utils.GetOrSetUserIDFromCookie(w, r)
+	if err != nil {
+		http.Error(w, "Failed to get or set user ID", http.StatusInternalServerError)
 		return
 	}
 
