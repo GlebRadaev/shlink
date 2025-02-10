@@ -7,7 +7,6 @@ on:
       - main
 
 jobs:
-
   branchtest:
     runs-on: ubuntu-latest
 
