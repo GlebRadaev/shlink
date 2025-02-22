@@ -44,6 +44,14 @@ func (app *Application) Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %v", err)
 	}
+
+	if app.Config.EnableHTTPS {
+		err := GenerateCertificate(app.Config.CertPath, app.Config.KeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to generate certificates: %v", err)
+		}
+	}
+
 	app.WorkerPool = taskmanager.NewWorkerPool(app.Ctx, 100, 10)
 	repositories := repository.NewRepositoryFactory(app.Ctx, app.Config, app.Logger)
 	app.Services = service.NewServiceFactory(app.Ctx, app.Config, app.Logger, app.WorkerPool, repositories)
@@ -64,8 +72,16 @@ func (app *Application) Start() error {
 		logger.Infoln("Base URL:", app.Config.BaseURL)
 		logger.Infoln("File storage path:", app.Config.FileStoragePath)
 		logger.Infoln("Database path:", app.Config.DatabaseDSN)
-		if err := app.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("Server error: %v", err)
+		if app.Config.EnableHTTPS {
+			logger.Infoln("Starting server with HTTPS...")
+			if err := app.Server.ListenAndServeTLS(app.Config.CertPath, app.Config.KeyPath); err != nil && err != http.ErrServerClosed {
+				logger.Fatalf("HTTPS server error: %v", err)
+			}
+		} else {
+			logger.Infoln("Starting server with HTTP...")
+			if err := app.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Fatalf("HTTP server error: %v", err)
+			}
 		}
 	}()
 	<-app.Ctx.Done()

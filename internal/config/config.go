@@ -13,6 +13,9 @@ type Config struct {
 	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`  // Base URL for shortened links
 	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"` // Path to the storage file
 	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""`                   // Database connection string // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
+	EnableHTTPS     bool   `env:"ENABLE_HTTPS" envDefault:"false"`
+	CertPath        string `env:"CERT_PATH" envDefault:"./certs/cert.pem"`
+	KeyPath         string `env:"KEY_PATH" envDefault:"./certs/key.pem"`
 }
 
 // ParseAndLoadConfig reads configuration from environment variables and command-line flags.
@@ -29,6 +32,7 @@ func ParseAndLoadConfig() (*Config, error) {
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base address for shortened URL")
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "Path to file storage")
 	flag.StringVar(&cfg.DatabaseDSN, "d", "", "Database connection string")
+	flag.BoolVar(&cfg.EnableHTTPS, "s", cfg.EnableHTTPS, "Enable HTTPS mode")
 	flag.Parse()
 
 	return cfg, nil
