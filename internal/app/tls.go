@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// GenerateCertificate generates a self-signed TLS certificate and a private key.
 func GenerateCertificate(certPath, keyPath string) error {
 	certDir := filepath.Dir(certPath)
 	if err := os.MkdirAll(certDir, 0755); err != nil {

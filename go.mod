@@ -7,8 +7,8 @@ require (
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/jackc/pgx/v5 v5.7.1
-	github.com/lib/pq v1.10.9
 	github.com/kisielk/errcheck v1.8.0
+	github.com/lib/pq v1.10.9
 	github.com/pashagolub/pgxmock/v4 v4.3.0
 	github.com/pressly/goose/v3 v3.22.1
 	github.com/stretchr/testify v1.9.0
