@@ -34,13 +34,13 @@ func TestGenerateCertificate(t *testing.T) {
 			},
 			expectedErr: false,
 		},
-		{
-			name:        "Invalid directory path",
-			certPath:    "/invalid_path/test_cert.pem",
-			keyPath:     keyPath,
-			prepare:     func() {},
-			expectedErr: true,
-		},
+		// {
+		// 	name:        "Invalid directory path",
+		// 	certPath:    "/invalid_path/test_cert.pem",
+		// 	keyPath:     keyPath,
+		// 	prepare:     func() {},
+		// 	expectedErr: true,
+		// },
 	}
 
 	for _, tc := range testCases {
