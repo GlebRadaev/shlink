@@ -21,6 +21,7 @@ func resetEnv() {
 	// Clear environment variables
 	os.Unsetenv("SERVER_ADDRESS")
 	os.Unsetenv("BASE_URL")
+	os.Unsetenv("CONFIG")
 }
 
 func TestParseAndLoadConfig_ValidEnvVars(t *testing.T) {
@@ -77,4 +78,53 @@ func TestParseAndLoadConfig_CommandLineArgs(t *testing.T) {
 	// Check that the configuration values are loaded from command-line arguments
 	assert.Equal(t, "127.0.0.1:9090", cfg.ServerAddress)
 	assert.Equal(t, "http://short.ly", cfg.BaseURL)
+}
+
+func TestParseAndLoadConfig_ValidJSONConfig(t *testing.T) {
+	resetFlagsAndArgs()
+	resetEnv()
+
+	jsonConfig := `{
+		"server_address": "192.168.1.0:8080",
+		"base_url": "http://192.168.1.0:8080",
+		"file_storage_path": "./json_storage.txt",
+		"enable_https": true
+	}`
+
+	tmpFile, err := os.CreateTemp("", "config-*.json")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(jsonConfig)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	os.Setenv("CONFIG", tmpFile.Name())
+
+	cfg, err := config.ParseAndLoadConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "192.168.1.0:8080", cfg.ServerAddress)
+	assert.Equal(t, "http://192.168.1.0:8080", cfg.BaseURL)
+	assert.Equal(t, "./json_storage.txt", cfg.FileStoragePath)
+	assert.True(t, cfg.EnableHTTPS)
+}
+
+func TestParseAndLoadConfig_InvalidJSON(t *testing.T) {
+	resetFlagsAndArgs()
+	resetEnv()
+
+	tmpFile, err := os.CreateTemp("", "config-*.json")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(`{ "server_address": "localhost:8080", `)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	os.Setenv("CONFIG", tmpFile.Name())
+
+	_, err = config.ParseAndLoadConfig()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load config from JSON")
 }
