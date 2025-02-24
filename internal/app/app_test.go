@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -114,4 +117,53 @@ func TestApplicationSetupRoutes(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestApplicationSignalHandling(t *testing.T) {
+	resetFlagsAndArgs()
+	resetEnv()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	application := app.NewApplication(ctx)
+	err := application.Init()
+	assert.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		if err := application.Start(); err != nil && err != http.ErrServerClosed {
+			t.Errorf("Server error: %v", err)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM)
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		signalChan <- syscall.SIGTERM
+	}()
+
+	select {
+	case <-signalChan:
+		t.Log("Received SIGTERM, shutting down")
+		cancel()
+		err := application.Shutdown()
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for shutdown")
+	}
+
+	wg.Wait()
 }
