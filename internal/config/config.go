@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/caarlos0/env/v6"
@@ -19,6 +20,8 @@ type Config struct {
 	CertPath        string `env:"CERT_PATH" envDefault:"./certs/cert.pem"`
 	KeyPath         string `env:"KEY_PATH" envDefault:"./certs/key.pem"`
 	ConfigPath      string `env:"CONFIG"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET" envDefault:""`
+	trustedSubnet   *net.IPNet
 }
 
 // ParseAndLoadConfig reads configuration from environment variables and command-line flags.
@@ -37,6 +40,7 @@ func ParseAndLoadConfig() (*Config, error) {
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "Path to file storage")
 	flag.StringVar(&cfg.DatabaseDSN, "d", cfg.DatabaseDSN, "Database connection string")
 	flag.BoolVar(&cfg.EnableHTTPS, "s", cfg.EnableHTTPS, "Enable HTTPS mode")
+	flag.StringVar(&cfg.TrustedSubnet, "t", cfg.TrustedSubnet, "Trusted subnet for internal stats endpoint")
 	flag.Parse()
 
 	if cfg.ConfigPath != "" {
@@ -47,7 +51,21 @@ func ParseAndLoadConfig() (*Config, error) {
 		applyJSONConfig(cfg, jsonData)
 	}
 
+	if cfg.TrustedSubnet != "" {
+		_, subnet, err := net.ParseCIDR(cfg.TrustedSubnet)
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted subnet: %v", err)
+		}
+		cfg.trustedSubnet = subnet
+	}
+
+	fmt.Print(cfg)
 	return cfg, nil
+}
+
+// GetTrustedSubnet returns the parsed TrustedSubnet
+func (c *Config) GetTrustedSubnet() *net.IPNet {
+	return c.trustedSubnet
 }
 
 // loadFromJSON loads config from JSON file
@@ -89,5 +107,8 @@ func applyJSONConfig(cfg *Config, jsonData map[string]interface{}) {
 	}
 	if val, ok := jsonData["key_path"].(string); ok && val != "" {
 		cfg.KeyPath = val
+	}
+	if val, ok := jsonData["trusted_subnet"].(string); ok && val != "" {
+		cfg.TrustedSubnet = val
 	}
 }
