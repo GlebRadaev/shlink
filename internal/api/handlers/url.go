@@ -189,3 +189,28 @@ func (h *URLHandlers) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
+
+func (h *URLHandlers) GetStats(w http.ResponseWriter, r *http.Request) {
+	clientIP := r.Header.Get("X-Real-IP")
+	if clientIP == "" {
+		http.Error(w, "X-Real-IP header is missing", http.StatusForbidden)
+		return
+	}
+
+	if !h.urlService.IsAllowed(clientIP) {
+		http.Error(w, "Access forbidden", http.StatusForbidden)
+		return
+	}
+
+	stats, err := h.urlService.GetStats(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
+}
