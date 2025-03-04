@@ -67,8 +67,6 @@ func TestApplicationStart(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(1 * time.Second)
-
 	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
@@ -94,8 +92,6 @@ func TestApplicationShutdown(t *testing.T) {
 			t.Errorf("Server error: %v", err)
 		}
 	}()
-
-	time.Sleep(1 * time.Second)
 
 	err = application.Shutdown()
 	assert.NoError(t, err)
@@ -139,8 +135,6 @@ func TestApplicationSignalHandling(t *testing.T) {
 			t.Errorf("Server error: %v", err)
 		}
 	}()
-
-	time.Sleep(1 * time.Second)
 
 	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
 	assert.NoError(t, err)
