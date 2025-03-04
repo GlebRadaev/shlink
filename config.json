@@ -1,0 +1,9 @@
+{
+    "server_address": "localhost:8011",
+    "base_url": "http://localhost:8011",
+    "file_storage_path": "storage.txt",
+    "database_dsn": "postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable",
+    "enable_https": true,
+    "tls_cert_path": "./certs/cert.pem",
+    "tls_key_path": "./certs/key.pem"
+}

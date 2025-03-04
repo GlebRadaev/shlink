@@ -26,3 +26,6 @@ vendor/
 /lefthook.yml
 
 .env
+
+# Игнорируем сертификаты
+/certs/

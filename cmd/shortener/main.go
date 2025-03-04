@@ -19,7 +19,7 @@ var (
 
 func main() {
 	printBuildInfo()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 	application := app.NewApplication(ctx)
 	if err := application.Init(); err != nil {
