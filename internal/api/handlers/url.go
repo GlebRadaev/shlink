@@ -190,6 +190,7 @@ func (h *URLHandlers) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// GetStats retrieves the statistics for the URL shortening service.
 func (h *URLHandlers) GetStats(w http.ResponseWriter, r *http.Request) {
 	clientIP := r.Header.Get("X-Real-IP")
 	if clientIP == "" {
