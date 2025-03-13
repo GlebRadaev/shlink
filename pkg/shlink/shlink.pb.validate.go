@@ -35,9 +35,6 @@ var (
 	_ = sort.Sort
 )
 
-// define the regex for a UUID once up-front
-var _shlink_uuidPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
 // Validate checks the field values on ShortenRequest with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -60,49 +57,12 @@ func (m *ShortenRequest) validate(all bool) error {
 
 	var errors []error
 
-	if uri, err := url.Parse(m.GetUrl()); err != nil {
-		err = ShortenRequestValidationError{
-			field:  "Url",
-			reason: "value must be a valid URI",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	} else if !uri.IsAbs() {
-		err := ShortenRequestValidationError{
-			field:  "Url",
-			reason: "value must be absolute",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for Url
 
-	if err := m._validateUuid(m.GetUserId()); err != nil {
-		err = ShortenRequestValidationError{
-			field:  "UserId",
-			reason: "value must be a valid UUID",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for UserId
 
 	if len(errors) > 0 {
 		return ShortenRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-func (m *ShortenRequest) _validateUuid(uuid string) error {
-	if matched := _shlink_uuidPattern.MatchString(uuid); !matched {
-		return errors.New("invalid uuid format")
 	}
 
 	return nil
@@ -303,16 +263,7 @@ func (m *RedirectRequest) validate(all bool) error {
 
 	var errors []error
 
-	if l := utf8.RuneCountInString(m.GetId()); l < 1 || l > 30 {
-		err := RedirectRequestValidationError{
-			field:  "Id",
-			reason: "value length must be between 1 and 30 runes, inclusive",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for Id
 
 	if len(errors) > 0 {
 		return RedirectRequestMultiError(errors)
@@ -516,49 +467,12 @@ func (m *ShortenJSONRequest) validate(all bool) error {
 
 	var errors []error
 
-	if uri, err := url.Parse(m.GetUrl()); err != nil {
-		err = ShortenJSONRequestValidationError{
-			field:  "Url",
-			reason: "value must be a valid URI",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	} else if !uri.IsAbs() {
-		err := ShortenJSONRequestValidationError{
-			field:  "Url",
-			reason: "value must be absolute",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for Url
 
-	if err := m._validateUuid(m.GetUserId()); err != nil {
-		err = ShortenJSONRequestValidationError{
-			field:  "UserId",
-			reason: "value must be a valid UUID",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for UserId
 
 	if len(errors) > 0 {
 		return ShortenJSONRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-func (m *ShortenJSONRequest) _validateUuid(uuid string) error {
-	if matched := _shlink_uuidPattern.MatchString(uuid); !matched {
-		return errors.New("invalid uuid format")
 	}
 
 	return nil
@@ -763,65 +677,10 @@ func (m *ShortenJSONBatchRequest) validate(all bool) error {
 
 	var errors []error
 
-	if len(m.GetUrls()) < 1 {
-		err := ShortenJSONBatchRequestValidationError{
-			field:  "Urls",
-			reason: "value must contain at least 1 item(s)",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	for idx, item := range m.GetUrls() {
-		_, _ = idx, item
-
-		if uri, err := url.Parse(item); err != nil {
-			err = ShortenJSONBatchRequestValidationError{
-				field:  fmt.Sprintf("Urls[%v]", idx),
-				reason: "value must be a valid URI",
-				cause:  err,
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		} else if !uri.IsAbs() {
-			err := ShortenJSONBatchRequestValidationError{
-				field:  fmt.Sprintf("Urls[%v]", idx),
-				reason: "value must be absolute",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-	}
-
-	if err := m._validateUuid(m.GetUserId()); err != nil {
-		err = ShortenJSONBatchRequestValidationError{
-			field:  "UserId",
-			reason: "value must be a valid UUID",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for UserId
 
 	if len(errors) > 0 {
 		return ShortenJSONBatchRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-func (m *ShortenJSONBatchRequest) _validateUuid(uuid string) error {
-	if matched := _shlink_uuidPattern.MatchString(uuid); !matched {
-		return errors.New("invalid uuid format")
 	}
 
 	return nil
@@ -1024,28 +883,10 @@ func (m *GetUserURLsRequest) validate(all bool) error {
 
 	var errors []error
 
-	if err := m._validateUuid(m.GetUserId()); err != nil {
-		err = GetUserURLsRequestValidationError{
-			field:  "UserId",
-			reason: "value must be a valid UUID",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
+	// no validation rules for UserId
 
 	if len(errors) > 0 {
 		return GetUserURLsRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-func (m *GetUserURLsRequest) _validateUuid(uuid string) error {
-	if matched := _shlink_uuidPattern.MatchString(uuid); !matched {
-		return errors.New("invalid uuid format")
 	}
 
 	return nil
@@ -1248,55 +1089,10 @@ func (m *DeleteUserURLsRequest) validate(all bool) error {
 
 	var errors []error
 
-	if err := m._validateUuid(m.GetUserId()); err != nil {
-		err = DeleteUserURLsRequestValidationError{
-			field:  "UserId",
-			reason: "value must be a valid UUID",
-			cause:  err,
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	if len(m.GetUrls()) < 1 {
-		err := DeleteUserURLsRequestValidationError{
-			field:  "Urls",
-			reason: "value must contain at least 1 item(s)",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
-	for idx, item := range m.GetUrls() {
-		_, _ = idx, item
-
-		if utf8.RuneCountInString(item) < 1 {
-			err := DeleteUserURLsRequestValidationError{
-				field:  fmt.Sprintf("Urls[%v]", idx),
-				reason: "value length must be at least 1 runes",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
-	}
+	// no validation rules for UserId
 
 	if len(errors) > 0 {
 		return DeleteUserURLsRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-func (m *DeleteUserURLsRequest) _validateUuid(uuid string) error {
-	if matched := _shlink_uuidPattern.MatchString(uuid); !matched {
-		return errors.New("invalid uuid format")
 	}
 
 	return nil

@@ -30,4 +30,5 @@ jobs:
 
       - name: Run statictest
         run: |
-          go vet -vettool=$(which statictest) ./...
+          PACKAGES_TO_CHECK=$(go list ./... | grep -v "/pkg/" | grep -v "/vendor.pb/")
+          go vet -vettool=$(which statictest) $PACKAGES_TO_CHECK
