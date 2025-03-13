@@ -1,8 +1,6 @@
 module github.com/GlebRadaev/shlink
 
-go 1.23
-
-toolchain go1.23.1
+go 1.22.7
 
 require (
 	github.com/caarlos0/env/v6 v6.10.1
