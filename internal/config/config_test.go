@@ -20,6 +20,7 @@ func resetFlagsAndArgs() {
 func resetEnv() {
 	// Clear environment variables
 	os.Unsetenv("SERVER_ADDRESS")
+	os.Unsetenv("GRPC_SERVER_ADDRESS")
 	os.Unsetenv("BASE_URL")
 	os.Unsetenv("CONFIG")
 }
@@ -30,6 +31,7 @@ func TestParseAndLoadConfig_ValidEnvVars(t *testing.T) {
 	resetEnv()
 
 	os.Setenv("SERVER_ADDRESS", "localhost:8080")
+	os.Setenv("GRPC_SERVER_ADDRESS", "localhost:9090")
 	os.Setenv("BASE_URL", "http://localhost")
 
 	cfg, err := config.ParseAndLoadConfig()
@@ -37,6 +39,7 @@ func TestParseAndLoadConfig_ValidEnvVars(t *testing.T) {
 		t.Fatalf("Failed to parse config: %v", err)
 	}
 	assert.Equal(t, "localhost:8080", cfg.ServerAddress)
+	assert.Equal(t, "localhost:9090", cfg.GRPCServerAddress)
 	assert.Equal(t, "http://localhost", cfg.BaseURL)
 }
 
@@ -55,7 +58,8 @@ func TestParseAndLoadConfig_MissingEnvVarsAndArgs(t *testing.T) {
 
 	// Check that the configuration values are set to default values
 	assert.Equal(t, "localhost:8080", cfg.ServerAddress)
-	assert.Equal(t, "http://localhost:8080", cfg.BaseURL) // corrected to the right default value
+	assert.Equal(t, "localhost:9090", cfg.GRPCServerAddress)
+	assert.Equal(t, "http://localhost:8080", cfg.BaseURL)
 }
 
 func TestParseAndLoadConfig_CommandLineArgs(t *testing.T) {
@@ -65,10 +69,11 @@ func TestParseAndLoadConfig_CommandLineArgs(t *testing.T) {
 
 	// Set environment variables for the test
 	os.Setenv("SERVER_ADDRESS", "localhost:8080")
+	os.Setenv("GRPC_SERVER_ADDRESS", "localhost:9090")
 	os.Setenv("BASE_URL", "http://localhost")
 
 	// Set command-line arguments for the test
-	os.Args = []string{"cmd", "-a", "127.0.0.1:9090", "-b", "http://short.ly"}
+	os.Args = []string{"cmd", "-a", "127.0.0.1:9090", "-g", "127.0.0.1:9091", "-b", "http://short.ly"}
 
 	// Call the function to parse the configuration
 	cfg, err := config.ParseAndLoadConfig()
@@ -77,6 +82,7 @@ func TestParseAndLoadConfig_CommandLineArgs(t *testing.T) {
 	}
 	// Check that the configuration values are loaded from command-line arguments
 	assert.Equal(t, "127.0.0.1:9090", cfg.ServerAddress)
+	assert.Equal(t, "127.0.0.1:9091", cfg.GRPCServerAddress)
 	assert.Equal(t, "http://short.ly", cfg.BaseURL)
 }
 
@@ -86,6 +92,7 @@ func TestParseAndLoadConfig_ValidJSONConfig(t *testing.T) {
 
 	jsonConfig := `{
 		"server_address": "192.168.1.0:8080",
+		"grpc_server_address": "192.168.1.0:9090",
 		"base_url": "http://192.168.1.0:8080",
 		"file_storage_path": "./json_storage.txt",
 		"enable_https": true
@@ -105,6 +112,7 @@ func TestParseAndLoadConfig_ValidJSONConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "192.168.1.0:8080", cfg.ServerAddress)
+	assert.Equal(t, "192.168.1.0:9090", cfg.GRPCServerAddress)
 	assert.Equal(t, "http://192.168.1.0:8080", cfg.BaseURL)
 	assert.Equal(t, "./json_storage.txt", cfg.FileStoragePath)
 	assert.True(t, cfg.EnableHTTPS)

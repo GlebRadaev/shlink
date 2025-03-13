@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/GlebRadaev/shlink/internal/utils"
-
-	"github.com/go-chi/chi/v5"
 )
 
 // URLHandlers defines the handlers for URL shortening.

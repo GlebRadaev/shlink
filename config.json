@@ -1,5 +1,6 @@
 {
     "server_address": "localhost:8011",
+    "grpc_server_address": "localhost:9090",
     "base_url": "http://localhost:8011",
     "file_storage_path": "storage.txt",
     "database_dsn": "postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable",

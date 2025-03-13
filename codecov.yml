@@ -19,4 +19,8 @@ github_checks:
 ignore:
   - "examples/**"
   - "**/*_mock.go"
+  - "pkg/**"
+  - "vendor/**"
+  - "vendor.pb/**"
+
 

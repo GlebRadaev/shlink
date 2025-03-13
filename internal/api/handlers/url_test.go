@@ -18,12 +18,17 @@ import (
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/GlebRadaev/shlink/internal/service/url"
 	"github.com/GlebRadaev/shlink/internal/taskmanager"
+	"github.com/GlebRadaev/shlink/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockErrorReader struct{}
+
+type contextKey string
+
+const userIDKey contextKey = "userID"
 
 func (m *mockErrorReader) Read(p []byte) (n int, err error) {
 	return 0, fmt.Errorf("mock read error")
@@ -386,6 +391,168 @@ func TestURLHandlers_ShortenJSONBatch(t *testing.T) {
 			matched, err := regexp.MatchString(tt.wantBody, string(body))
 			assert.NoError(t, err)
 			assert.True(t, matched, fmt.Sprintf("Expected body to match regex: %s, but got: %s", tt.wantBody, string(body)))
+		})
+	}
+}
+
+func TestURLHandlers_GetUserURLs(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		userID     string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "no URLs for user",
+			userID:     "userIDWithNoURLs",
+			wantStatus: http.StatusNoContent,
+			wantBody:   "",
+		},
+	}
+
+	urlService, _, err := setupURL(ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/user/urls", nil)
+			req = req.WithContext(context.WithValue(req.Context(), userIDKey, tt.userID))
+			w := httptest.NewRecorder()
+
+			handler.GetUserURLs(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			if tt.wantStatus == http.StatusOK {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			} else {
+				assert.Equal(t, tt.wantBody, string(body))
+			}
+		})
+	}
+}
+
+func TestURLHandlers_DeleteUserURLs(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		userID     string
+		body       string
+		wantStatus int
+	}{
+		{
+			name:       "error deleting URLs",
+			userID:     "userIDWithError",
+			body:       `{"url_ids": ["shortID1", "shortID2"]}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unauthorized user",
+			userID:     "",
+			body:       `{"url_ids": ["shortID1", "shortID2"]}`,
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	urlService, _, err := setupURL(ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("DELETE", "/api/user/urls", strings.NewReader(tt.body))
+
+			// Устанавливаем куки с JWT-токеном, если userID не пустой
+			if tt.userID != "" {
+				// Генерация JWT-токена
+				token, err := utils.GenerateJWT(tt.userID) // Предположим, что у вас есть функция GenerateJWT
+				if err != nil {
+					t.Fatalf("Failed to generate JWT: %v", err)
+				}
+
+				cookie := &http.Cookie{
+					Name:  utils.NameCookieUserID, // Используем правильное имя куки
+					Value: token,
+				}
+				req.AddCookie(cookie)
+			}
+
+			w := httptest.NewRecorder()
+
+			handler.DeleteUserURLs(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+		})
+	}
+}
+
+func TestURLHandlers_GetStats(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		clientIP   string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "forbidden IP",
+			clientIP:   "192.168.1.1",
+			wantStatus: http.StatusForbidden,
+			wantBody:   "Access forbidden\n",
+		},
+		{
+			name:       "missing X-Real-IP header",
+			clientIP:   "",
+			wantStatus: http.StatusForbidden,
+			wantBody:   "X-Real-IP header is missing\n",
+		},
+	}
+
+	urlService, _, err := setupURL(ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+	handler := NewURLHandlers(urlService)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/stats", nil)
+			if tt.clientIP != "" {
+				req.Header.Set("X-Real-IP", tt.clientIP)
+			}
+			w := httptest.NewRecorder()
+
+			handler.GetStats(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			if tt.wantStatus == http.StatusOK {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			} else {
+				assert.Equal(t, tt.wantBody, string(body))
+			}
 		})
 	}
 }

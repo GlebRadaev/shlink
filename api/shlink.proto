@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package shlink;
+option go_package = "./shlink";
+
+
+service ShlinkService {
+    rpc Shorten(ShortenRequest) returns (ShortenResponse);
+    rpc Redirect(RedirectRequest) returns (RedirectResponse);
+    rpc ShortenJSON(ShortenJSONRequest) returns (ShortenJSONResponse);
+    rpc ShortenJSONBatch(ShortenJSONBatchRequest) returns (ShortenJSONBatchResponse);
+    rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+    rpc DeleteUserURLs(DeleteUserURLsRequest) returns (DeleteUserURLsResponse);
+    rpc Ping(PingRequest) returns (PingResponse);
+    rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+message ShortenRequest {
+    string url = 1;
+    string user_id = 2;
+}
+
+message ShortenResponse {
+    string short_url = 1;
+}
+
+message RedirectRequest {
+    string id = 1;
+}
+
+message RedirectResponse {
+    string original_url = 1;
+}
+
+message ShortenJSONRequest {
+    string url = 1;
+    string user_id = 2;
+}
+
+message ShortenJSONResponse {
+    string short_url = 1;
+}
+
+message ShortenJSONBatchRequest {
+    repeated string urls = 1;
+    string user_id = 2;
+}
+
+message ShortenJSONBatchResponse {
+    repeated string short_urls = 1;
+}
+
+message GetUserURLsRequest {
+    string user_id = 1;
+}
+
+message GetUserURLsResponse {
+    repeated string urls = 1;
+}
+
+message DeleteUserURLsRequest {
+    string user_id = 1;
+    repeated string urls = 2; 
+}
+
+message DeleteUserURLsResponse {
+    bool success = 1;
+}
+
+message PingRequest {}
+
+message PingResponse {
+    string status = 1;
+}
+
+message GetStatsRequest {}
+
+message GetStatsResponse {
+    int64 total_urls = 1;
+    int64 total_users = 2;
+}

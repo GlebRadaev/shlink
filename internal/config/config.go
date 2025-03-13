@@ -12,16 +12,17 @@ import (
 
 // Config holds the configuration settings for the application.
 type Config struct {
-	ServerAddress   string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`   // HTTP server address
-	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`  // Base URL for shortened links
-	FileStoragePath string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"` // Path to the storage file
-	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:""`                   // Database connection string // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
-	EnableHTTPS     bool   `env:"ENABLE_HTTPS" envDefault:"false"`
-	CertPath        string `env:"CERT_PATH" envDefault:"./certs/cert.pem"`
-	KeyPath         string `env:"KEY_PATH" envDefault:"./certs/key.pem"`
-	ConfigPath      string `env:"CONFIG"`
-	TrustedSubnet   string `env:"TRUSTED_SUBNET" envDefault:""`
-	trustedSubnet   *net.IPNet
+	ServerAddress     string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`      // HTTP server address
+	GRPCServerAddress string `env:"GRPC_SERVER_ADDRESS" envDefault:"localhost:9090"` // gRPC server address
+	BaseURL           string `env:"BASE_URL" envDefault:"http://localhost:8080"`     // Base URL for shortened links
+	FileStoragePath   string `env:"FILE_STORAGE_PATH" envDefault:"./storage.txt"`    // Path to the storage file
+	DatabaseDSN       string `env:"DATABASE_DSN" envDefault:""`                      // Database connection string // postgres://shlink:shlink@localhost:54321/shlink?sslmode=disable
+	EnableHTTPS       bool   `env:"ENABLE_HTTPS" envDefault:"false"`
+	CertPath          string `env:"CERT_PATH" envDefault:"./certs/cert.pem"`
+	KeyPath           string `env:"KEY_PATH" envDefault:"./certs/key.pem"`
+	ConfigPath        string `env:"CONFIG"`
+	TrustedSubnet     string `env:"TRUSTED_SUBNET" envDefault:""`
+	trustedSubnet     *net.IPNet
 }
 
 // ParseAndLoadConfig reads configuration from environment variables and command-line flags.
@@ -36,6 +37,7 @@ func ParseAndLoadConfig() (*Config, error) {
 
 	flag.StringVar(&cfg.ConfigPath, "c", configPath, "Path to JSON config file")
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "HTTP server address")
+	flag.StringVar(&cfg.GRPCServerAddress, "g", cfg.GRPCServerAddress, "gRPC server address")
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base address for shortened URL")
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "Path to file storage")
 	flag.StringVar(&cfg.DatabaseDSN, "d", cfg.DatabaseDSN, "Database connection string")
@@ -89,6 +91,9 @@ func loadFromJSON(path string) (map[string]interface{}, error) {
 func applyJSONConfig(cfg *Config, jsonData map[string]interface{}) {
 	if val, ok := jsonData["server_address"].(string); ok && val != "" {
 		cfg.ServerAddress = val
+	}
+	if val, ok := jsonData["grpc_server_address"].(string); ok && val != "" {
+		cfg.GRPCServerAddress = val
 	}
 	if val, ok := jsonData["base_url"].(string); ok && val != "" {
 		cfg.BaseURL = val

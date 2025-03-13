@@ -25,6 +25,39 @@ const (
 	MaxIDLength = 8
 )
 
+// IURLService defines the interface for URL shortening and management services.
+type IURLService interface {
+	// LoadData loads previously backed-up URL data and inserts them into the repository.
+	LoadData(ctx context.Context) error
+
+	// SaveData retrieves all URLs and backs them up to persistent storage.
+	SaveData(ctx context.Context) error
+
+	// ProcessDeleteURLsTask processes a task that deletes a list of URLs for a specific user.
+	ProcessDeleteURLsTask(ctx context.Context, task taskmanager.Task) error
+
+	// Shorten generates a shortened URL for the given original URL and returns the short version.
+	Shorten(ctx context.Context, userID string, url string) (string, error)
+
+	// ShortenList generates shortened URLs for a batch of original URLs and returns their short versions.
+	ShortenList(ctx context.Context, userID string, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error)
+
+	// GetOriginal retrieves the original URL associated with the given short ID.
+	GetOriginal(ctx context.Context, id string) (string, error)
+
+	// GetUserURLs retrieves all URLs shortened by a specific user.
+	GetUserURLs(ctx context.Context, userID string) (dto.GetUserURLsResponseDTO, error)
+
+	// DeleteUserURLs schedules a task to delete multiple URLs for a specific user.
+	DeleteUserURLs(ctx context.Context, userID string, urls []string) error
+
+	// IsAllowed checks whether the given IP address is within the trusted subnet.
+	IsAllowed(ip string) bool
+
+	// GetStats retrieves statistical data about stored URLs and users.
+	GetStats(ctx context.Context) (map[string]int, error)
+}
+
 // URLService handles the business logic for shortening URLs
 // and interacts with repositories, backups, and tasks related to URL management.
 type URLService struct {
