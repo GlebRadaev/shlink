@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 
@@ -474,54 +475,113 @@ func TestURLService_GetUserURLs(t *testing.T) {
 	}
 }
 
-// func TestDeleteUserURLs_EmptyURLs(t *testing.T) {
-// 	ctx := context.Background()
-// 	_, urlService, _, _, _, err := setup(t, ctx)
-// 	if err != nil {
-// 		t.Fatalf("Failed to set up test: %v", err)
-// 	}
-// 	urls := []string{}
-// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
-// 	assert.NoError(t, err)
-// }
+func TestURLService_IsAllowed(t *testing.T) {
+	ctx := context.Background()
 
-// func TestDeleteUserURLs_ErrorOnDelete(t *testing.T) {
-// 	ctx := context.Background()
-// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
-// 	if err != nil {
-// 		t.Fatalf("Failed to set up test: %v", err)
-// 	}
-// 	urls := []string{"url1", "url2"}
-// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls).Return(errors.New("delete error"))
+	_, urlService, _, cfg, _, err := setup(t, ctx)
 
-// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
-// 	assert.Error(t, err)
-// 	assert.Equal(t, "Error deleting batch for userID=userID: delete error", err.Error())
+	_, subnet, _ := net.ParseCIDR("192.168.1.0/24")
+	cfg.TrustedSubnet = subnet.String()
 
-// }
+	fmt.Print(cfg)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
 
-// func TestDeleteUserURLs_SuccessfulDelete(t *testing.T) {
-// 	ctx := context.Background()
-// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
-// 	if err != nil {
-// 		t.Fatalf("Failed to set up test: %v", err)
-// 	}
-// 	urls := []string{"url1", "url2"}
-// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls).Return(nil)
-// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
-// 	assert.NoError(t, err)
+	tests := []struct {
+		name     string
+		ip       string
+		expected bool
+	}{
+		{
+			name:     "IP outside trusted subnet",
+			ip:       "10.0.0.1",
+			expected: false,
+		},
+		{
+			name:     "Invalid IP",
+			ip:       "invalid-ip",
+			expected: false,
+		},
+		{
+			name:     "Empty IP",
+			ip:       "",
+			expected: false,
+		},
+		{
+			name:     "No trusted subnet",
+			ip:       "192.168.1.100",
+			expected: false,
+		},
+	}
 
-// }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "No trusted subnet" {
+				cfg.TrustedSubnet = ""
+			}
+			result := urlService.IsAllowed(tt.ip)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
 
-// func TestDeleteUserURLs_SuccessfulBatchProcessing(t *testing.T) {
-// 	ctx := context.Background()
-// 	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
-// 	if err != nil {
-// 		t.Fatalf("Failed to set up test: %v", err)
-// 	}
-// 	urls := []string{"url1", "url2", "url3", "url4", "url5", "url6", "url7", "url8", "url9", "url10", "url11"}
-// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls[:10]).Return(nil)
-// 	mockURLRepo.EXPECT().DeleteListByUserIDAndShortIDs(gomock.Any(), "userID", urls[10:]).Return(nil)
-// 	err = urlService.DeleteUserURLs(context.Background(), "userID", urls)
-// 	assert.NoError(t, err)
-// }
+func TestURLService_GetStats(t *testing.T) {
+	ctx := context.Background()
+	mockURLRepo, urlService, _, _, _, err := setup(t, ctx)
+	if err != nil {
+		t.Fatalf("Failed to set up test: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		setupMock func(mockURLRepo *repository.MockIURLRepository)
+		want      map[string]int
+		wantErr   error
+	}{
+		{
+			name: "success",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().CountURLs(ctx).Return(10, nil)
+				mockURLRepo.EXPECT().CountUsers(ctx).Return(5, nil)
+			},
+			want: map[string]int{
+				"urls":  10,
+				"users": 5,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "error counting URLs",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().CountURLs(ctx).Return(0, errors.New("repository error"))
+			},
+			want:    nil,
+			wantErr: errors.New("repository error"),
+		},
+		{
+			name: "error counting users",
+			setupMock: func(mockURLRepo *repository.MockIURLRepository) {
+				mockURLRepo.EXPECT().CountURLs(ctx).Return(10, nil)
+				mockURLRepo.EXPECT().CountUsers(ctx).Return(0, errors.New("repository error"))
+			},
+			want:    nil,
+			wantErr: errors.New("repository error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock(mockURLRepo)
+			got, err := urlService.GetStats(ctx)
+
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				assert.Nil(t, got)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}

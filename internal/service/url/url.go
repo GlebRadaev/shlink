@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/GlebRadaev/shlink/internal/config"
@@ -24,14 +25,48 @@ const (
 	MaxIDLength = 8
 )
 
+// IURLService defines the interface for URL shortening and management services.
+type IURLService interface {
+	// LoadData loads previously backed-up URL data and inserts them into the repository.
+	LoadData(ctx context.Context) error
+
+	// SaveData retrieves all URLs and backs them up to persistent storage.
+	SaveData(ctx context.Context) error
+
+	// ProcessDeleteURLsTask processes a task that deletes a list of URLs for a specific user.
+	ProcessDeleteURLsTask(ctx context.Context, task taskmanager.Task) error
+
+	// Shorten generates a shortened URL for the given original URL and returns the short version.
+	Shorten(ctx context.Context, userID string, url string) (string, error)
+
+	// ShortenList generates shortened URLs for a batch of original URLs and returns their short versions.
+	ShortenList(ctx context.Context, userID string, data dto.BatchShortenRequestDTO) (dto.BatchShortenResponseDTO, error)
+
+	// GetOriginal retrieves the original URL associated with the given short ID.
+	GetOriginal(ctx context.Context, id string) (string, error)
+
+	// GetUserURLs retrieves all URLs shortened by a specific user.
+	GetUserURLs(ctx context.Context, userID string) (dto.GetUserURLsResponseDTO, error)
+
+	// DeleteUserURLs schedules a task to delete multiple URLs for a specific user.
+	DeleteUserURLs(ctx context.Context, userID string, urls []string) error
+
+	// IsAllowed checks whether the given IP address is within the trusted subnet.
+	IsAllowed(ip string) bool
+
+	// GetStats retrieves statistical data about stored URLs and users.
+	GetStats(ctx context.Context) (map[string]int, error)
+}
+
 // URLService handles the business logic for shortening URLs
 // and interacts with repositories, backups, and tasks related to URL management.
 type URLService struct {
-	log      *zap.SugaredLogger        // Logger for the service
-	config   *config.Config            // Configuration settings for the service
-	taskPool *taskmanager.WorkerPool   // Worker pool for handling tasks
-	backup   backup.IBackupService     // Backup service for saving and loading URL data
-	urlRepo  interfaces.IURLRepository // Repository for interacting with stored URLs
+	log           *zap.SugaredLogger        // Logger for the service
+	config        *config.Config            // Configuration settings for the service
+	taskPool      *taskmanager.WorkerPool   // Worker pool for handling tasks
+	backup        backup.IBackupService     // Backup service for saving and loading URL data
+	urlRepo       interfaces.IURLRepository // Repository for interacting with stored URLs
+	trustedSubnet *net.IPNet                // Trusted Subnet
 }
 
 // NewURLService creates a new instance of URLService with the specified configurations
@@ -44,11 +79,12 @@ func NewURLService(
 	urlRepo interfaces.IURLRepository,
 ) *URLService {
 	service := &URLService{
-		log:      log.Named("URLService"),
-		config:   config,
-		backup:   backup,
-		urlRepo:  urlRepo,
-		taskPool: pool,
+		log:           log.Named("URLService"),
+		config:        config,
+		backup:        backup,
+		urlRepo:       urlRepo,
+		taskPool:      pool,
+		trustedSubnet: config.GetTrustedSubnet(),
 	}
 	pool.RegisterHandler("delete_urls_task", service.ProcessDeleteURLsTask)
 	return service
@@ -266,53 +302,33 @@ func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, urls []s
 	return nil
 }
 
-// const batchSize = 10
-// var wg sync.WaitGroup
-// errChan := make(chan error, len(urls)/batchSize+1)
-// successChan := make(chan string, len(urls)/batchSize+1)
-// for i := 0; i < len(urls); i += batchSize {
-// 	end := i + batchSize
-// 	if end > len(urls) {
-// 		end = len(urls)
-// 	}
-// 	batch := urls[i:end]
-// 	s.log.Infof("Processing batch for userID=%s: %v", userID, batch)
+// IsAllowed checks whether the given IP address is within the trusted subnet.
+func (s *URLService) IsAllowed(ip string) bool {
+	if s.trustedSubnet == nil {
+		return false
+	}
 
-// 	wg.Add(1)
-// 	go func(batch []string) {
-// 		defer wg.Done()
-// 		err := s.urlRepo.DeleteListByUserIDAndShortIDs(ctx, userID, batch)
-// 		if err != nil {
-// 			errChan <- fmt.Errorf("Error deleting batch for userID=%s: %v", userID, err)
-// 		} else {
-// 			successChan <- fmt.Sprintf("Batch deleted for userID=%s: %v", userID, batch)
-// 		}
-// 	}(batch)
-// }
+	clientIP := net.ParseIP(ip)
+	if clientIP == nil {
+		return false
+	}
+	return s.trustedSubnet.Contains(clientIP)
+}
 
-// go func() {
-// 	wg.Wait()
-// 	close(errChan)
-// 	close(successChan)
-// }()
+// GetStats retrieves statistical data about stored URLs and users.
+func (s *URLService) GetStats(ctx context.Context) (map[string]int, error) {
+	urlsCount, err := s.urlRepo.CountURLs(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-// for {
-// 	select {
-// 	case err, ok := <-errChan:
-// 		if ok && err != nil {
-// 			s.log.Errorf("Error in delete task for userID=%s: %v", userID, err)
-// 			return err
-// 		}
-// 	case success, ok := <-successChan:
-// 		if ok {
-// 			s.log.Infof("Success: %s", success)
-// 		}
-// 	}
-// 	if len(errChan) == 0 && len(successChan) == 0 {
-// 		break
-// 	}
-// }
-// s.log.Infof("Completed delete task for userID=%s", userID)
+	usersCount, err := s.urlRepo.CountUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-// return nil
-// }
+	return map[string]int{
+		"urls":  urlsCount,
+		"users": usersCount,
+	}, nil
+}

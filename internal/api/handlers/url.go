@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/GlebRadaev/shlink/internal/dto"
 	"github.com/GlebRadaev/shlink/internal/service"
 	"github.com/GlebRadaev/shlink/internal/utils"
-
-	"github.com/go-chi/chi/v5"
 )
 
 // URLHandlers defines the handlers for URL shortening.
@@ -188,4 +188,30 @@ func (h *URLHandlers) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// GetStats retrieves the statistics for the URL shortening service.
+func (h *URLHandlers) GetStats(w http.ResponseWriter, r *http.Request) {
+	clientIP := r.Header.Get("X-Real-IP")
+	if clientIP == "" {
+		http.Error(w, "X-Real-IP header is missing", http.StatusForbidden)
+		return
+	}
+
+	if !h.urlService.IsAllowed(clientIP) {
+		http.Error(w, "Access forbidden", http.StatusForbidden)
+		return
+	}
+
+	stats, err := h.urlService.GetStats(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
 }

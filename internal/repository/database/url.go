@@ -24,6 +24,26 @@ func NewURLRepository(db interfaces.DBPool) interfaces.IURLRepository {
 	return &URLRepository{db: db}
 }
 
+// CountURLs returns the total number of URLs stored in the database.
+func (r *URLRepository) CountURLs(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM urls").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountUsers returns the number of unique users who have stored URLs.
+func (r *URLRepository) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, "SELECT COUNT(DISTINCT user_id) FROM urls").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // Insert inserts a new URL into the database, or updates the existing one based on the original URL.
 // If the URL already exists, it updates the short ID. Returns the inserted or updated URL.
 func (r *URLRepository) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {

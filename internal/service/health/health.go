@@ -12,6 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// IHealthService определяет методы для проверки состояния приложения.
+type IHealthService interface {
+	// CheckDatabaseConnection проверяет соединение с базой данных.
+	CheckDatabaseConnection(ctx context.Context) error
+}
+
 // HealthService provides functionality to check the health of the application
 // by performing checks like database connection status.
 type HealthService struct {

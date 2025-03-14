@@ -4,6 +4,8 @@ package app_test
 import (
 	"context"
 	"flag"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,8 +16,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/GlebRadaev/shlink/internal/app"
+	"github.com/GlebRadaev/shlink/pkg/shlink"
 )
 
 func resetFlagsAndArgs() {
@@ -26,6 +31,22 @@ func resetFlagsAndArgs() {
 func resetEnv() {
 	os.Unsetenv("SERVER_ADDRESS")
 	os.Unsetenv("BASE_URL")
+	os.Unsetenv("GRPC_SERVER_ADDRESS")
+}
+
+func waitForServer(addr string, timeout time.Duration) error {
+	start := time.Now()
+	for {
+		conn, err := net.Dial("tcp", addr)
+		if err == nil {
+			conn.Close()
+			return nil
+		}
+		if time.Since(start) > timeout {
+			return fmt.Errorf("server did not start within %v", timeout)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func TestNewApplication(t *testing.T) {
@@ -48,6 +69,7 @@ func TestApplicationInit(t *testing.T) {
 	assert.NotNil(t, application.Logger)
 	assert.NotNil(t, application.Services)
 	assert.NotNil(t, application.Server)
+	assert.NotNil(t, application.GRPCServer)
 }
 
 func TestApplicationStart(t *testing.T) {
@@ -67,10 +89,22 @@ func TestApplicationStart(t *testing.T) {
 		}
 	}()
 
+	err = waitForServer(application.Config.ServerAddress, 5*time.Second)
+	assert.NoError(t, err)
+
 	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	conn, err := grpc.NewClient(application.Config.GRPCServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	client := shlink.NewShlinkServiceClient(conn)
+	grpcResp, err := client.Ping(context.Background(), &shlink.PingRequest{})
+	assert.NoError(t, err)
+	assert.NotNil(t, grpcResp)
 
 	err = application.Shutdown()
 	assert.NoError(t, err)
@@ -92,6 +126,8 @@ func TestApplicationShutdown(t *testing.T) {
 			t.Errorf("Server error: %v", err)
 		}
 	}()
+	err = waitForServer(application.Config.ServerAddress, 5*time.Second)
+	assert.NoError(t, err)
 
 	err = application.Shutdown()
 	assert.NoError(t, err)
@@ -135,6 +171,8 @@ func TestApplicationSignalHandling(t *testing.T) {
 			t.Errorf("Server error: %v", err)
 		}
 	}()
+	err = waitForServer(application.Config.ServerAddress, 5*time.Second)
+	assert.NoError(t, err)
 
 	resp, err := http.Get("http://" + application.Config.ServerAddress + "/ping")
 	assert.NoError(t, err)

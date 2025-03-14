@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/grpc"
 
 	"github.com/GlebRadaev/shlink/internal/api"
 	"github.com/GlebRadaev/shlink/internal/api/handlers"
@@ -25,6 +27,7 @@ type Application struct {
 	Logger     *logger.Logger
 	Services   *service.Services
 	Server     *http.Server
+	GRPCServer *grpc.Server
 	WorkerPool *taskmanager.WorkerPool
 }
 
@@ -61,6 +64,10 @@ func (app *Application) Init() error {
 		Addr:    app.Config.ServerAddress,
 		Handler: router,
 	}
+	app.GRPCServer, err = api.NewGRPCServer(app.Services.URLService, app.Services.HealthService)
+	if err != nil {
+		return fmt.Errorf("failed to create gRPC server: %v", err)
+	}
 	return nil
 }
 
@@ -84,6 +91,19 @@ func (app *Application) Start() error {
 			}
 		}
 	}()
+
+	go func() {
+		logger := app.Logger.Named("gRPC Server Initialization")
+		lis, err := net.Listen("tcp", app.Config.GRPCServerAddress) // Добавьте GRPCServerAddress в конфиг
+		if err != nil {
+			logger.Fatalf("Failed to listen: %v", err)
+		}
+		logger.Infoln("gRPC server started at", app.Config.GRPCServerAddress)
+		if err := app.GRPCServer.Serve(lis); err != nil {
+			logger.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
 	<-app.Ctx.Done()
 	return app.Shutdown()
 }
@@ -98,6 +118,10 @@ func (app *Application) Shutdown() error {
 	} else {
 		logger.Info("Server shutdown successfully")
 	}
+
+	app.GRPCServer.GracefulStop()
+	logger.Info("gRPC server shutdown successfully")
+
 	saveCtx, saveCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer saveCancel()
 	if err := app.Services.URLService.SaveData(saveCtx); err != nil {

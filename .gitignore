@@ -29,3 +29,6 @@ vendor/
 
 # Игнорируем сертификаты
 /certs/
+
+/bin
+vendor

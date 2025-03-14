@@ -14,6 +14,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Disable VCS in Go
+        run: go env -w GOFLAGS="-buildvcs=false"
+
       - name: Download statictest binary
         uses: robinraju/release-downloader@v1.12
         with:
@@ -30,4 +33,5 @@ jobs:
 
       - name: Run statictest
         run: |
-          go vet -vettool=$(which statictest) ./...
+          PACKAGES_TO_CHECK=$(go list ./... | grep -v "/pkg/" | grep -v "/vendor.pb/")
+          go vet -vettool=$(which statictest) $PACKAGES_TO_CHECK
