@@ -8,6 +8,14 @@ import (
 
 // IURLRepository defines the interface for URL-related data access operations.
 type IURLRepository interface {
+	// CountURLs returns the total number of URLs stored in the database.
+	// Returns the result or an error
+	CountURLs(ctx context.Context) (int, error)
+
+	// CountUsers returns the number of unique users who have stored URLs.
+	// Returns the result or an error if the query fails.
+	CountUsers(ctx context.Context) (int, error)
+
 	// Insert adds a new URL entry to the repository.
 	// Returns the created URL model or an error.
 	Insert(ctx context.Context, url *model.URL) (*model.URL, error)

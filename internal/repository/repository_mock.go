@@ -41,6 +41,36 @@ func (m *MockIURLRepository) EXPECT() *MockIURLRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CountURLs mocks base method.
+func (m *MockIURLRepository) CountURLs(ctx context.Context) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountURLs", ctx)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountURLs indicates an expected call of CountURLs.
+func (mr *MockIURLRepositoryMockRecorder) CountURLs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountURLs", reflect.TypeOf((*MockIURLRepository)(nil).CountURLs), ctx)
+}
+
+// CountUsers mocks base method.
+func (m *MockIURLRepository) CountUsers(ctx context.Context) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUsers", ctx)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsers indicates an expected call of CountUsers.
+func (mr *MockIURLRepositoryMockRecorder) CountUsers(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsers", reflect.TypeOf((*MockIURLRepository)(nil).CountUsers), ctx)
+}
+
 // DeleteListByUserIDAndShortIDs mocks base method.
 func (m *MockIURLRepository) DeleteListByUserIDAndShortIDs(ctx context.Context, userID string, shortIDs []string) error {
 	m.ctrl.T.Helper()

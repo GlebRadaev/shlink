@@ -25,6 +25,106 @@ func setupMockRepository(t *testing.T) (interfaces.IURLRepository, pgxmock.PgxPo
 	return repo, mockDB
 }
 
+func TestURLRepository_CountURLs(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		mockSetup     func()
+		expectedCount int
+		expectedError error
+	}{
+		{
+			name: "Successful CountURLs",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT COUNT\(\*\) FROM urls`).
+					WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(10))
+			},
+			expectedCount: 10,
+			expectedError: nil,
+		},
+		{
+			name: "CountURLs Query Error",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT COUNT\(\*\) FROM urls`).
+					WillReturnError(errors.New("query error"))
+			},
+			expectedCount: 0,
+			expectedError: errors.New("query error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+
+			count, err := repo.CountURLs(ctx)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, count)
+			}
+
+			assert.NoError(t, mockDB.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestURLRepository_CountUsers(t *testing.T) {
+	ctx := context.Background()
+	repo, mockDB := setupMockRepository(t)
+	defer mockDB.Close()
+
+	tests := []struct {
+		name          string
+		mockSetup     func()
+		expectedCount int
+		expectedError error
+	}{
+		{
+			name: "Successful CountUsers",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT COUNT\(DISTINCT user_id\) FROM urls`).
+					WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(5))
+			},
+			expectedCount: 5,
+			expectedError: nil,
+		},
+		{
+			name: "CountUsers Query Error",
+			mockSetup: func() {
+				mockDB.ExpectQuery(`SELECT COUNT\(DISTINCT user_id\) FROM urls`).
+					WillReturnError(errors.New("query error"))
+			},
+			expectedCount: 0,
+			expectedError: errors.New("query error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+
+			count, err := repo.CountUsers(ctx)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, count)
+			}
+
+			assert.NoError(t, mockDB.ExpectationsWereMet())
+		})
+	}
+}
+
 func TestURLRepository_Insert(t *testing.T) {
 	ctx := context.Background()
 	repo, mockDB := setupMockRepository(t)

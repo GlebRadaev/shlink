@@ -10,6 +10,135 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMemoryStorage_CountURLs(t *testing.T) {
+	storage := inmemory.NewMemoryStorage()
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		storedData    map[string]model.URL
+		expectedCount int
+		expectedError error
+	}{
+		{
+			name:          "Empty storage",
+			storedData:    map[string]model.URL{},
+			expectedCount: 0,
+			expectedError: nil,
+		},
+		{
+			name: "Successful CountURLs",
+			storedData: map[string]model.URL{
+				"abc123": {ShortID: "abc123", OriginalURL: "http://example.com", UserID: "user1"},
+				"xyz789": {ShortID: "xyz789", OriginalURL: "http://another.com", UserID: "user2"},
+			},
+			expectedCount: 2,
+			expectedError: nil,
+		},
+		{
+			name: "Context cancelled",
+			storedData: map[string]model.URL{
+				"abc123": {ShortID: "abc123", OriginalURL: "http://example.com", UserID: "user1"},
+			},
+			expectedCount: 0,
+			expectedError: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, url := range tt.storedData {
+				_, err := storage.Insert(ctx, &url)
+				assert.NoError(t, err)
+			}
+
+			if tt.expectedError == context.Canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+
+			count, err := storage.CountURLs(ctx)
+
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, count)
+			}
+		})
+	}
+}
+
+func TestMemoryStorage_CountUsers(t *testing.T) {
+	storage := inmemory.NewMemoryStorage()
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		storedData    map[string]model.URL
+		expectedCount int
+		expectedError error
+	}{
+		{
+			name:          "Empty storage",
+			storedData:    map[string]model.URL{},
+			expectedCount: 0,
+			expectedError: nil,
+		},
+		{
+			name: "Duplicate users",
+			storedData: map[string]model.URL{
+				"abc123": {ShortID: "abc123", OriginalURL: "http://example.com", UserID: "user1"},
+				"xyz789": {ShortID: "xyz789", OriginalURL: "http://another.com", UserID: "user1"},
+			},
+			expectedCount: 1,
+			expectedError: nil,
+		},
+		{
+			name: "Successful CountUsers",
+			storedData: map[string]model.URL{
+				"abc123": {ShortID: "abc123", OriginalURL: "http://example1.com", UserID: "user0"},
+				"xyz789": {ShortID: "xyz789", OriginalURL: "http://another.com", UserID: "user2"},
+			},
+			expectedCount: 2,
+			expectedError: nil,
+		},
+		{
+			name: "Context cancelled",
+			storedData: map[string]model.URL{
+				"abc123": {ShortID: "abc123", OriginalURL: "http://example.com", UserID: "user1"},
+			},
+			expectedCount: 0,
+			expectedError: context.Canceled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, url := range tt.storedData {
+				_, err := storage.Insert(ctx, &url)
+				assert.NoError(t, err)
+			}
+
+			if tt.expectedError == context.Canceled {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+
+			count, err := storage.CountUsers(ctx)
+
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedCount, count)
+			}
+		})
+	}
+}
+
 func TestMemoryStorage_Insert(t *testing.T) {
 	storage := inmemory.NewMemoryStorage()
 	ctx := context.Background()

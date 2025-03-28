@@ -40,6 +40,30 @@ func NewMemoryStorage() interfaces.IURLRepository {
 	}
 }
 
+// CountURLs returns the total number of URLs stored in memory.
+func (s *MemoryStorage) CountURLs(ctx context.Context) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return len(s.data), nil
+}
+
+// CountUsers returns the number of unique users who have stored URLs.
+func (s *MemoryStorage) CountUsers(ctx context.Context) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	userSet := make(map[string]struct{})
+	for _, url := range s.data {
+		userSet[url.UserID] = struct{}{}
+	}
+	return len(userSet), nil
+}
+
 // Insert stores a URL in memory or returns the existing one if the original
 // URL is already in the storage. It generates a new ShortID if needed.
 func (s *MemoryStorage) Insert(ctx context.Context, url *model.URL) (*model.URL, error) {
